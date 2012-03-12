@@ -4,14 +4,14 @@ import java.io.{FileWriter, File, PrintWriter}
 
 import scala.virtualization.lms.common._
 import scala.virtualization.lms.internal.{GenericCodegen, GenericFatCodegen, GenerationFailedException}
-import ppl.delite.framework.datastruct.scala.DeliteCollection
 import ppl.delite.framework.Config
+import ppl.delite.framework.datastructures._
 import ppl.delite.framework.extern.lib._
 
 //trait DeliteOpsExp extends BaseFatExp with EffectExp with VariablesExp with LoopsFatExp {
 trait DeliteOpsExp extends BaseFatExp with EffectExp with VariablesExp with LoopsFatExp with IfThenElseFatExp
-    with VariantsOpsExp with DeliteCollectionOpsExp
-    with OrderingOpsExp with CastingOpsExp with ImplicitOpsExp with WhileExp with ArrayOpsExp with StaticDataExp {  
+    with VariantsOpsExp with DeliteCollectionOpsExp with DeliteArrayFatExp
+    with OrderingOpsExp with CastingOpsExp with ImplicitOpsExp with WhileExp with ArrayOpsExp with StaticDataExp {
   
 
 /*
@@ -106,7 +106,7 @@ trait DeliteOpsExp extends BaseFatExp with EffectExp with VariablesExp with Loop
   ) extends Def[Unit]
   
   case class DeliteCollectElem[A, CA/* <: DeliteCollection[A]*/]( // require to be collection subclass or not? DeliteArray isn't...
-    aV: Sym[Array[A]], //TODO: array and length!
+    aV: Sym[DeliteArray[A]], //TODO: array and length!
     alloc: Block[CA],
     func: Block[A],
     cond: List[Block[Boolean]] = Nil
@@ -239,15 +239,116 @@ trait DeliteOpsExp extends BaseFatExp with EffectExp with VariablesExp with Loop
    *    to allocate the accumulator, and it IS used in the initial reduction.
    */
 
-   abstract class DeliteOpMapLike[A:Manifest, CA <: DeliteCollection[A]:Manifest] extends DeliteOpLoop[CA] {
-     type OpType <: DeliteOpMapLike[A,CA]
+  abstract class DeliteOpMapLike[A:Manifest, CA <: DeliteCollection[A]:Manifest] extends DeliteOpLoop[CA] {
+    type OpType <: DeliteOpMapLike[A,CA]
 
-     def alloc: Exp[CA]
-     def allocWithArray: Exp[Array[A]] => Exp[CA] = { data => val res = alloc; dc_unsafeSetData(res, data, array_length(data)); res }
+    def alloc: Exp[CA]
+    def allocWithArray: Exp[DeliteArray[A]] => Exp[CA] = { data => val res = alloc; dc_unsafeSetData(res, data, darray_length(data)); res }
      
-     //final lazy val allocVal: Exp[CA] = copyTransformedOrElse(_.allocVal)(reifyEffects(alloc))
-     final lazy val aV: Sym[Array[A]] = copyTransformedOrElse(_.aV)(fresh[Array[A]]).asInstanceOf[Sym[Array[A]]]
+    //final lazy val allocVal: Exp[CA] = copyTransformedOrElse(_.allocVal)(reifyEffects(alloc))
+    final lazy val aV: Sym[DeliteArray[A]] = copyTransformedOrElse(_.aV)(fresh[DeliteArray[A]]).asInstanceOf[Sym[DeliteArray[A]]]
    }
+
+  abstract class DeliteOpMapLikeStruct[A:Manifest, CA: Manifest] extends /*AbstractStruct[CA] with*/ DeliteOpLoop[CA] {
+    type OpType <: DeliteOpMapLikeStruct[A,CA]
+
+    //val size: Exp[Int]
+    //final lazy val v: Sym[Int] = copyTransformedOrElse(_.v)(fresh[Int]).asInstanceOf[Sym[Int]]
+
+    def allocWithArray: Exp[DeliteArray[A]] => Exp[CA]
+    final lazy val aV: Sym[DeliteArray[A]] = copyTransformedOrElse(_.aV)(fresh[DeliteArray[A]]).asInstanceOf[Sym[DeliteArray[A]]]
+
+    val funcBlock: Block[A]
+    val condBlock: List[Block[Boolean]]
+
+    lazy val body: Def[CA] = copyBodyOrElse(DeliteCollectElem[A,CA](aV, reifyEffects(allocWithArray(aV)), funcBlock, condBlock))
+
+    def unwrapStruct = manifest[CA] <:< manifest[Record]
+
+    /* def unwrapStruct = body match {
+      case DeliteCollectElem(_,alloc,_,_) => alloc match {
+        case Block(Def(Struct(_,_))) => true
+        case _ => false
+      }
+      case _ => false
+    } */
+
+    //TODO: copyBodyOrElse? use MapLikeLoop?
+    //TODO: can we do anything with Block(Reify)?
+    lazy val structBody = funcBlock match {
+      case Block(Def(Struct(tag, elems))) =>
+        def copyLoop[B:Manifest](func: Block[B]): Exp[DeliteArray[B]] = {
+          val aV = fresh[DeliteArray[B]] //TODO: copyTransformedOrElse??? //supplied by MapLikeLoop?
+          simpleLoop(size, v, DeliteCollectElem[B,DeliteArray[B]](aV, reifyEffects(aV), func, condBlock)) //TODO: MapLikeLoop?
+        }
+        def soa[B:Manifest](tag: List[String], elems: Map[String,Exp[Any]]): Exp[DeliteArray[B]] = {
+          val newElems = elems.map {
+            case (index, e@Def(Struct(t,es))) => (index, soa(t,es)(e.Type))
+            case (index, e) => (index, copyLoop(Block(e))(e.Type))
+          }
+          struct[DeliteArray[B]]("Array"::tag, newElems)
+        }
+        //val soa = struct[DeliteArray[A]]("Array"::tag, elems.map(p=>(p._1, copyLoop(Block(p._2))(p._2.Type)))) //TODO: nested SOA (p._2 is Struct)
+        allocWithArray(soa[A](tag,elems))
+      case _ =>
+        //simpleLoop(size, v, DeliteCollectElem(aV, reifyEffects(allocWithArray(aV)), funcBlock, condBlock))
+        allocWithArray(simpleLoop(size, v, DeliteCollectElem(aV, reifyEffects(aV), funcBlock, condBlock))) //so the loop part always returns an array
+    }
+
+    /* val body2 = manifest[CA] match {
+      case rm: RefinedManifest[ca] =>
+        def copyLoop[B:Manifest](func: Block[B]): Exp[DeliteArray[B]] = {
+          new DeliteOpMapLike {
+            val size = this.size
+            val funcBlock = func
+            val condBlock = this.condBlock
+            def allocWithArray = data => data
+          }
+        }
+        val soa = struct[DeliteArray[A]]("Array"::tag, rm.fields.map(p=>(p._1, copyLoop(field(funcBlock, p._1))(p._2))))
+      case _ =>
+    } */
+  }
+
+  abstract class DeliteOpMapStruct[A:Manifest, B:Manifest, CB:Manifest] extends DeliteOpMapLikeStruct[B,CB] {
+    type OpType <: DeliteOpMapStruct[A,B,CB]
+
+    val in: Exp[DeliteCollection[A]] //DeliteCollection must be a Record?
+    def func: Exp[A] => Exp[B]
+
+    lazy val funcBlock = reifyEffects(func(dc_apply(in,v)))
+    val condBlock = Nil
+  }
+
+  abstract class DeliteOpIndexedLoopStruct[A:Manifest, CA:Manifest] extends DeliteOpMapLikeStruct[A,CA] {
+    type OpType <: DeliteOpIndexedLoopStruct[A,CA]
+
+    def func: Exp[Int] => Exp[A]
+    lazy val funcBlock = reifyEffects(func(v))
+    val condBlock = Nil
+  }
+
+  abstract class DeliteOpFilterStruct[A:Manifest, B:Manifest, CB:Manifest] extends DeliteOpMapLikeStruct[B,CB] {
+    type OpType <: DeliteOpFilterStruct[A,B,CB]
+
+    val in: Exp[DeliteCollection[A]]
+    def func: Exp[A] => Exp[B]
+    def cond: Exp[A] => Exp[Boolean]
+
+    lazy val funcBlock = reifyEffects(func(dc_apply(in,v)))
+    lazy val condBlock = reifyEffects(cond(dc_apply(in,v)))::Nil
+  }
+
+  abstract class DeliteOpZipWithStruct[A:Manifest, B:Manifest, R:Manifest, CR:Manifest] extends DeliteOpMapLikeStruct[R,CR] {
+    type OpType <: DeliteOpZipWithStruct[A,B,R,CR]
+
+    val inA: Exp[DeliteCollection[A]]
+    val inB: Exp[DeliteCollection[B]]
+    def func: (Exp[A], Exp[B]) => Exp[R]
+
+    lazy val funcBlock = reifyEffects(func(dc_apply(inA,v), dc_apply(inB,v)))
+    val condBlock = Nil
+  }
 
   /**
    * Parallel map from DeliteCollection[A] => DeliteCollection[B]. Input functions can depend on free
@@ -269,7 +370,7 @@ trait DeliteOpsExp extends BaseFatExp with EffectExp with VariablesExp with Loop
     //val size: Exp[Int] // could be dc_size(in), but we want type-specific pattern matching to work
     def func: Exp[A] => Exp[B]
     def alloc: Exp[CB]
-    
+
     // loop
     lazy val body: Def[CB] = copyBodyOrElse(DeliteCollectElem[B, CB](
       aV = this.aV,
@@ -302,8 +403,8 @@ trait DeliteOpsExp extends BaseFatExp with EffectExp with VariablesExp with Loop
       func = reifyEffects(this.func(dc_apply(in,v))),
       cond = reifyEffects(this.cond(dc_apply(in,v)))::Nil
     ))
-  }  
-  
+  }
+
   
   
   /**
@@ -329,13 +430,88 @@ trait DeliteOpsExp extends BaseFatExp with EffectExp with VariablesExp with Loop
     val inB: Exp[DeliteCollection[B]]
     def func: (Exp[A], Exp[B]) => Exp[R]
     def alloc: Exp[CR]
-    
+
     // loop
     lazy val body: Def[CR] = copyBodyOrElse(DeliteCollectElem[R, CR](
       aV = this.aV,
       alloc = reifyEffects(this.allocWithArray(aV)),
       func = reifyEffects(this.func(dc_apply(inA,v), dc_apply(inB,v)))
     ))
+  }
+
+  abstract class DeliteOpReduceLikeStruct[A:Manifest] extends DeliteOpLoop[A] {
+    type OpType <: DeliteOpReduceLikeStruct[A]
+
+    //val size: Exp[Int]
+    //final val v: Sym[Int] = copyTransformedOrElse(_.v)(fresh[Int]).asInstanceOf[Sym[Int]]
+    final lazy val rV: (Sym[A], Sym[A]) = zeroBlock match { //TODO: is this the best way?
+      case Block(Def(Struct(tag, elems))) => //for A <: Struct, we can't simply make a fresh[A] since we want to unwrap A
+        //TODO: copyOrElse
+        (struct[A](tag, elems.map(p=>(p._1, fresh(p._2.Type)))).asInstanceOf[Sym[A]], struct[A](tag, elems.map(p=>(p._1, fresh(p._2.Type)))).asInstanceOf[Sym[A]])
+      case _ => copyOrElse(_.rV)((reflectMutableSym(fresh[A]), fresh[A]))
+    }
+
+    val mutable: Boolean = false
+    val stripFirst: Boolean = !isPrimitiveType(manifest[A]) && !mutable
+
+    val funcBlock: Block[A]
+    val condBlock: List[Block[Boolean]] = Nil
+    val zeroBlock: Block[A]
+    val rFuncBlock: Block[A]
+
+    lazy val body: Def[A] = copyBodyOrElse(DeliteReduceElem[A](funcBlock, condBlock, zeroBlock, rV, rFuncBlock, stripFirst))
+
+    def unwrapStruct = rFuncBlock match {
+      case Block(Def(Struct(_,_))) => true
+      case  _ => false
+    }
+
+    lazy val structBody = funcBlock match {
+      case Block(f @ Def(Struct(_,_))) => rFuncBlock match {
+        case Block(r @ Def(Struct(rTag,rElems))) => zeroBlock match {
+          case Block(z @ Def(Struct(_,_))) => rV match {
+            case (rv1 @ Def(Struct(_,_)), rv2 @ Def(Struct(_,_))) =>
+              def copyLoop[B:Manifest](index: String): Exp[B] = {
+                simpleLoop(size, v, DeliteReduceElem[B](
+                  func = Block(field[B](f,index)),
+                  cond = condBlock,
+                  zero = Block(field[B](z,index)),
+                  rV = (field[B](rv1,index).asInstanceOf[Sym[B]], field[B](rv2,index).asInstanceOf[Sym[B]]),
+                  rFunc = Block(field[B](r,index)),
+                  stripFirst = this.stripFirst
+                ))
+              }
+              struct[A](rTag, rElems.map(p=>(p._1, copyLoop(p._1)(p._2.Type))))
+          }
+        }
+      }
+    }
+
+  }
+
+  abstract class DeliteOpReduceStruct[A:Manifest] extends DeliteOpReduceLikeStruct[A] {
+    type OpType <: DeliteOpReduceStruct[A]
+
+    val in: Exp[DeliteCollection[A]]
+    def zero: Exp[A]
+    def func: (Exp[A], Exp[A]) => Exp[A]
+
+    lazy val funcBlock = reifyEffects(dc_apply(in,v))
+    lazy val zeroBlock = reifyEffects(zero)
+    lazy val rFuncBlock = reifyEffects(func(rV._1, rV._2))
+  }
+
+  abstract class DeliteOpMapReduceStruct[A:Manifest,R:Manifest] extends DeliteOpReduceLikeStruct[R] {
+    type OpType <: DeliteOpMapReduceStruct[A,R]
+
+    val in: Exp[DeliteCollection[A]]
+    def zero: Exp[R]
+    def map: Exp[A] => Exp[R]
+    def reduce: (Exp[R], Exp[R]) => Exp[R]
+
+    lazy val funcBlock = reifyEffects(map(dc_apply(in,v)))
+    lazy val zeroBlock = reifyEffects(zero)
+    lazy val rFuncBlock = reifyEffects(reduce(rV._1, rV._2))
   }
   
   abstract class DeliteOpReduceLike[A:Manifest] extends DeliteOpLoop[A] {
@@ -640,6 +816,26 @@ trait DeliteOpsExp extends BaseFatExp with EffectExp with VariablesExp with Loop
 
 
   
+  ////////////////////////////
+  // structs
+
+  override def field[T:Manifest](struct: Rep[Record], index: String): Rep[T] = struct match {
+    case Def(m: DeliteOpMapLikeStruct[a,ca]) if (m.unwrapStruct) =>
+      field(m.structBody, index)
+    case Def(r: DeliteOpReduceLikeStruct[a]) if (r.unwrapStruct) =>
+      field(r.structBody, index)
+    case _ => super.field(struct, index)
+  }
+
+  override def unapplyStruct[T](d: Def[T]) = d match {
+    case m: DeliteOpMapLikeStruct[_,T] if (m.unwrapStruct) => m.structBody match {
+      case Def(body) => unapplyStruct(body)
+    }
+    case r: DeliteOpReduceLikeStruct[T] if (r.unwrapStruct) => r.structBody match {
+      case Def(body) => unapplyStruct(body)
+    }
+    case _ => super.unapplyStruct(d)
+  }
 
   ///////////////////////////
   // effects + other helpers
@@ -744,7 +940,7 @@ trait DeliteOpsExp extends BaseFatExp with EffectExp with VariablesExp with Loop
     d match {
       case e: DeliteCollectElem[a,ca] => 
         DeliteCollectElem[a,ca](
-          aV = f(e.aV).asInstanceOf[Sym[Array[a]]],
+          aV = f(e.aV).asInstanceOf[Sym[DeliteArray[a]]],
           alloc = f(e.alloc),
           func = f(e.func),
           cond = e.cond.map(f(_))//f(e.cond)
@@ -1885,7 +2081,7 @@ trait ScalaGenDeliteOps extends ScalaGenLoopsFat with ScalaGenStaticDataDelite w
       } else {
         stream.println("TODO: thin loop codegen")
       }
-*/      
+*/
     case foreach:DeliteOpForeach2[_,_] => {
       if (deliteKernel == false){
         //stream.println("def " + quote(sym) + "_block = {")

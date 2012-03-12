@@ -24,7 +24,7 @@ trait SimpleVectorScalaOpsPkg extends Base
   with ImplicitOps with NumericOps with OrderingOps with StringOps
   with BooleanOps with PrimitiveOps with MiscOps with TupleOps
   with MathOps with CastingOps with ObjectOps with ArrayOps
-  with DeliteArrayOps
+  with DeliteArrayOps with StructOps
 
 //Exps version
 trait SimpleVectorScalaOpsPkgExp extends SimpleVectorScalaOpsPkg with DSLOpsExp
@@ -32,7 +32,7 @@ trait SimpleVectorScalaOpsPkgExp extends SimpleVectorScalaOpsPkg with DSLOpsExp
   with ImplicitOpsExp with NumericOpsExp with OrderingOpsExp with StringOpsExp
   with BooleanOpsExp with PrimitiveOpsExp with MiscOpsExp with TupleOpsExp
   with MathOpsExp with CastingOpsExp with ObjectOpsExp with ArrayOpsExp with RangeOpsExp
-  with DeliteArrayOpsExp with DeliteOpsExp with StructExp
+  with DeliteOpsExp
   
 //Scala codegen version
 trait SimpleVectorScalaCodeGenPkg extends ScalaGenDSLOps
@@ -43,6 +43,7 @@ trait SimpleVectorScalaCodeGenPkg extends ScalaGenDSLOps
   with ScalaGenDeliteArrayOps with ScalaGenStruct
   { val IR: SimpleVectorScalaOpsPkgExp }
 
+/*
 trait SimpleVectorCudaCodeGenPkg extends CudaGenDSLOps
   with CudaGenEqual with CudaGenIfThenElse with CudaGenVariables with CudaGenWhile with CudaGenFunctions
   with CudaGenImplicitOps with CudaGenNumericOps with CudaGenOrderingOps with CudaGenStringOps
@@ -56,6 +57,7 @@ trait SimpleVectorCCodeGenPkg extends CGenDSLOps
   with CGenBooleanOps with CGenPrimitiveOps with CGenMiscOps
   with CGenArrayOps with CGenRangeOps
   { val IR: SimpleVectorScalaOpsPkgExp }
+*/
 
 /**
  * add SimpleVector functionality
@@ -68,14 +70,14 @@ trait SimpleVectorCompiler extends SimpleVector with RangeOps {
   this: SimpleVectorApplication with SimpleVectorExp =>
 }
 
-trait SimpleVectorExp extends SimpleVectorCompiler with SimpleVectorScalaOpsPkgExp with VectorOpsExp with VectorImplOpsStandard with DeliteOpsExp with DeliteAllOverridesExp {
+trait SimpleVectorExp extends SimpleVectorCompiler with SimpleVectorScalaOpsPkgExp with VectorOpsExp with VectorImplOpsStandard with DeliteAllOverridesExp {
   this: DeliteApplication with SimpleVectorApplication =>
 
   def getCodeGenPkg(t: Target{val IR: SimpleVectorExp.this.type}) : GenericFatCodegen{val IR: SimpleVectorExp.this.type} = {
     t match {
       case _:TargetScala => new SimpleVectorCodegenScala{val IR: SimpleVectorExp.this.type = SimpleVectorExp.this}
-      case _:TargetCuda => new SimpleVectorCodegenCuda{val IR: SimpleVectorExp.this.type = SimpleVectorExp.this}
-      case _:TargetC => new SimpleVectorCodegenC{val IR: SimpleVectorExp.this.type = SimpleVectorExp.this}
+      //case _:TargetCuda => new SimpleVectorCodegenCuda{val IR: SimpleVectorExp.this.type = SimpleVectorExp.this}
+      //case _:TargetC => new SimpleVectorCodegenC{val IR: SimpleVectorExp.this.type = SimpleVectorExp.this}
       case _ => throw new RuntimeException("simple vector does not support this target")
     }
   }
@@ -98,7 +100,8 @@ trait SimpleVectorApplicationRunner extends SimpleVectorApplication with DeliteA
 trait SimpleVectorCodegenBase extends GenericFatCodegen {
   val IR: DeliteApplication with SimpleVectorExp
   override def initialDefs = IR.deliteGenerator.availableDefs
-  
+
+  /*
   def dsmap(line: String) = line
 
   override def emitDataStructures(path: String) {
@@ -117,14 +120,16 @@ trait SimpleVectorCodegenBase extends GenericFatCodegen {
       }
       out.close()
     }
-  }
+  } */
+
 }
 
 trait SimpleVectorCodegenScala extends SimpleVectorCodegenBase with SimpleVectorScalaCodeGenPkg
-  with ScalaGenDeliteOps with ScalaGenVariantsOps with ScalaGenDeliteCollectionOps with DeliteScalaGenAllOverrides {
+  with ScalaGenDeliteOps with ScalaGenDeliteCollectionOps with DeliteScalaGenAllOverrides {
 
   val IR: DeliteApplication with SimpleVectorExp
   
+  /*
   //these methods translates types in the compiler to types in the generated code
   override def dsmap(line: String) : String = {
     var res = line.replaceAll("ppl.dsl.assignment2.datastructures", "generated")
@@ -135,17 +140,6 @@ trait SimpleVectorCodegenScala extends SimpleVectorCodegenBase with SimpleVector
   override def remap[A](m: Manifest[A]): String = m.erasure.getSimpleName match {
     case "Vector" => "Map[String,Any]"
     case _ => super.remap(m)
-  }
-}
+  } */
 
-trait SimpleVectorCodegenCuda extends SimpleVectorCodegenBase with SimpleVectorCudaCodeGenPkg
-  with CudaGenDeliteOps with CudaGenVariantsOps with DeliteCudaGenAllOverrides {
-
-  val IR: DeliteApplication with SimpleVectorExp
-}
-
-trait SimpleVectorCodegenC extends SimpleVectorCodegenBase with SimpleVectorCCodeGenPkg
-  with CGenDeliteOps with CGenVariantsOps with DeliteCGenAllOverrides {
-
-  val IR: DeliteApplication with SimpleVectorExp
 }

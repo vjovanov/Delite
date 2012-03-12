@@ -367,15 +367,15 @@ trait DSArrayOpsExp extends BaseFatExp with ArrayOpsExp with TupleOpsExp with Lo
     case ArraySort(len, v, comp) => toAtom(ArraySort(f(len),(f(v._1).asInstanceOf[Sym[Int]],f(v._2).asInstanceOf[Sym[Int]]),f(comp)))
     case IndexLookup(map, key) => toAtom(IndexLookup(f(map),f(key)))
     case ArrayFlatten(data) => toAtom(ArrayFlatten(f(data)))(mtype(manifest[A]))
-    case Field(o,key,manif) => toAtom(Field(f(o),key,manif))(mtype(manifest[A])) // TODO: shouldn't be here
+    //case Field(o,key,manif) => toAtom(Field(f(o),key,manif))(mtype(manifest[A])) // TODO: shouldn't be here
     case _ => super.mirror(e, f)
   }).asInstanceOf[Exp[A]]
 
 
 
   // override -- shouldn't belong here
-  override def struct[T:Manifest](tag: List[String], elems: Map[String, Rep[Any]]): Rep[T] = 
-    toAtom(SimpleStruct[T](tag, elems))(mtype(manifest[Map[String,Any]]))
+  //override def struct[T:Manifest](tag: List[String], elems: Map[String, Rep[Any]]): Rep[T] =
+  //  toAtom(GenericStruct[T](tag, elems))(mtype(manifest[Map[String,Any]]))
 
 
   //case class CharTuple(a: Exp[Char], b: Exp[Char]) extends Def[(Char,Char)]

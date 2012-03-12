@@ -12,12 +12,13 @@ import ppl.delite.framework.{Config, DeliteApplication}
 import ppl.dsl.optiql.user.applications._
 import java.io.{FileWriter, BufferedWriter, File}
 import ppl.delite.framework.codegen.{Utils, Target}
+import ppl.delite.framework.datastructures._
 
 
 /**
  * These are the lifted scala constructs that only operate on the Rep world. These are usually safe to mix in
  */
-trait OptiQLScalaOpsPkg extends Base with MiscOps with OrderingOps with PrimitiveOps with StringOps with TupleOps with NumericOps with ArrayOps with IfThenElse with Equal
+trait OptiQLScalaOpsPkg extends Base with MiscOps with StructOps with OrderingOps with PrimitiveOps with StringOps with TupleOps with NumericOps with ArrayOps with IfThenElse with Equal
 
 /**
  * This trait adds the Ops that are specific to OptiQL

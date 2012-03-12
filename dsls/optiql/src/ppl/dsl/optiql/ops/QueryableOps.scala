@@ -3,13 +3,12 @@ package ppl.dsl.optiql.ops
 import ppl.dsl.optiql.datastruct.scala.container.{DataTable, Grouping}
 import java.io.PrintWriter
 import scala.virtualization.lms.common.{Base, ScalaGenFat, BaseFatExp}
-import scala.virtualization.lms.internal.GenericFatCodegen
-import ppl.dsl.optiql.OptiQLExp
-import ppl.delite.framework.datastructures.FieldAccessOpsExp
+import ppl.dsl.optiql.{OptiQL, OptiQLExp}
+import ppl.delite.framework.ops.DeliteCollection
 
-trait QueryableOps extends Base {
+trait QueryableOps extends Base { this: OptiQL =>
 
-  //type TransparentProxy[+T] = Rep[T]
+  //TODO: abstract class Grouping[TKey, TSource] extends Struct with DeliteCollection[TSource]
 
   implicit def repToQueryableOps[TSource:Manifest](r: Rep[DataTable[TSource]]) = new QOpsCls(r) 
   implicit def repGroupingToQueryableOps[TKey:Manifest, TSource:Manifest](g: Rep[Grouping[TKey, TSource]]) = new QOpsCls(queryable_grouping_toDatatable(g))
@@ -17,8 +16,6 @@ trait QueryableOps extends Base {
   abstract class OrderedQueryable[TSource:Manifest]
   implicit def repOQtoOQOps[TSource:Manifest](r: Rep[OrderedQueryable[TSource]]) = new OQOpsCls(r)  
   implicit def repOQtoDT[TSource:Manifest](r: Rep[OrderedQueryable[TSource]]): Rep[DataTable[TSource]]
-  
-  //override def __forward[A,B,C](self: TransparentProxy[A], method: String, x: TransparentProxy[B]*): TransparentProxy[C] = throw new RuntimeException("forwarding to " + method)
 
   class QOpsCls[TSource:Manifest](s: Rep[DataTable[TSource]]) {
     def Where(predicate: Rep[TSource] => Rep[Boolean]) = queryable_where(s, predicate)
@@ -75,22 +72,26 @@ trait QueryableOps extends Base {
   
 }
 
-trait QueryableOpsExp extends QueryableOps with BaseFatExp {
-  this: QueryableOps with OptiQLExp =>
-
-
+trait QueryableOpsExp extends QueryableOps with BaseFatExp { this: OptiQLExp =>
 
   case class QueryableWhere[TSource:Manifest](in: Exp[DataTable[TSource]], cond: Exp[TSource] => Exp[Boolean]) extends DeliteOpFilter[TSource, TSource,DataTable[TSource]] {
     def alloc = DataTable[TSource]()
+    override def allocWithArray = data => DataTable(data, data.length)
     def func = e => e
-    val size = in.size
+    val size = copyTransformedOrElse(_.size)(in.size)
   }
      
   case class QueryableSelect[TSource:Manifest, TResult:Manifest](in: Exp[DataTable[TSource]], func: Exp[TSource] => Exp[TResult]) extends DeliteOpMap[TSource, TResult, DataTable[TResult]] {
     def alloc = DataTable[TResult](in.size)
-    val size = in.size
+    override def allocWithArray = data => DataTable(data, data.length)
+    val size = copyTransformedOrElse(_.size)(in.size)
   }
-  
+
+  case class QueryableSum[TSource:Manifest](in: Exp[DataTable[TSource]], map: Exp[TSource] => Exp[Double]) extends DeliteOpMapReduce[TSource,Double] {
+    val size = copyTransformedOrElse(_.size)(in.size)
+    def zero = 0
+    def reduce = _ + _
+  }
   
   //these are hacked up for now untill we have proper Delite support
   case class HackQueryableGroupBy[TSource:Manifest, TKey:Manifest](s: Exp[DataTable[TSource]], v:Sym[TSource], key: Block[TKey]) extends Def[DataTable[Grouping[TKey, TSource]]]
@@ -110,17 +111,15 @@ trait QueryableOpsExp extends QueryableOps with BaseFatExp {
   }
 
   def queryable_select[TSource:Manifest, TResult:Manifest](s: Rep[DataTable[TSource]], resultSelector: Rep[TSource] => Rep[TResult]) = {
-//  val v = fresh[TSource]
-//  val func = reifyEffects(resultSelector(v))
-//    QueryableSelect(s, resultSelector)
-    val data = arraySelect(s.size)(i => resultSelector(s(i)))
-    DataTable(data, data.length)
+    QueryableSelect(s, resultSelector)
+    //val data = arraySelect(s.size)(i => resultSelector(s(i)))
+    //DataTable(data, data.length)
   }
   
   def queryable_where[TSource:Manifest](s: Exp[DataTable[TSource]], predicate: Exp[TSource] => Exp[Boolean]) = {
-    //QueryableWhere(s,predicate)
-    val data = arrayWhere(s.size)(i => predicate(s(i)))(i => s(i))
-    DataTable(data, data.length)
+    QueryableWhere(s, predicate)
+    //val data = arrayWhere(s.size)(i => predicate(s(i)))(i => s(i))
+    //DataTable(data, data.length)
   }
   
   def queryable_groupby[TSource:Manifest, TKey:Manifest](s: Exp[DataTable[TSource]], keySelector: Exp[TSource] => Exp[TKey]) = {
@@ -163,11 +162,9 @@ trait QueryableOpsExp extends QueryableOps with BaseFatExp {
 
 
   def queryable_sum[TSource:Manifest](s: Rep[DataTable[TSource]], sumSelector: Rep[TSource] => Rep[Double]) = {
-    /*val sym = fresh[TSource]
-    val value = reifyEffects(sumSelector(sym))
-    HackQueryableSum(s,sym,value)*/
-    val res = reducePlain(s.size)(i => sumSelector(s(i)))(0)(_ + _)
-    res
+    QueryableSum(s, sumSelector)
+    //val res = reducePlain(s.size)(i => sumSelector(s(i)))(0)(_ + _)
+    //res
   }
 
   def queryable_min_index[TSource:Manifest](s: Rep[DataTable[TSource]], minSelector: Rep[TSource] => Rep[Double]) = {

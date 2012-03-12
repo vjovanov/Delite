@@ -2,10 +2,13 @@ package ppl.dsl.optiql.ops
 
 import ppl.dsl.optiql.datastruct.scala.container.DataTable
 import scala.virtualization.lms.common.{ScalaGenFat, BaseFatExp, Base}
-import ppl.dsl.optiql.OptiQLExp
+import ppl.dsl.optiql.{OptiQL, OptiQLExp}
+import ppl.delite.framework.ops.DeliteCollection
 import java.io.PrintWriter
 
-trait DataTableOps extends Base {
+trait DataTableOps extends Base { this: OptiQL =>
+
+  //TODO: abstract class DataTable[T] extends Struct with DeliteCollection[T]
 
   // Lifting and Interface Injection
   implicit def dataTableRepToDataTableRepOps[T:Manifest](d: Rep[DataTable[T]]) = new DataTableRepOps(d)

@@ -7,7 +7,7 @@ import collection.mutable.{ArrayBuffer, ListBuffer, HashMap}
 import java.io.{StringWriter, FileWriter, File, PrintWriter}
 import scala.virtualization.lms.common.LoopFusionOpt
 import scala.virtualization.lms.internal.{GenerationFailedException}
-import ppl.delite.framework.datastruct.scala.DeliteCollection
+import ppl.delite.framework.datastructures._
 
 trait DeliteGenTaskGraph extends DeliteCodegen with LoopFusionOpt {
   val IR: DeliteOpsExp

@@ -1,9 +1,10 @@
 package ppl.delite.framework.ops
 
-import ppl.delite.framework.datastruct.scala.DeliteCollection
 import java.io.PrintWriter
 import scala.virtualization.lms.common.{EffectExp, BaseFatExp, Base, ScalaGenFat, CudaGenEffect, OpenCLGenEffect}
 import scala.virtualization.lms.internal.{GenericFatCodegen}
+
+trait DeliteCollection[A]
 
 trait DeliteCollectionOps extends Base {
   implicit def dcToDcOps[A:Manifest](x: Rep[DeliteCollection[A]]) = new deliteCollectionOpsCls(x)
@@ -23,7 +24,7 @@ trait DeliteCollectionOpsExp extends DeliteCollectionOps with BaseFatExp with Ef
   case class DeliteCollectionSize[A:Manifest](x: Exp[DeliteCollection[A]]) extends Def[Int]
   case class DeliteCollectionApply[A:Manifest](x: Exp[DeliteCollection[A]], n: Exp[Int]) extends Def[A]
   case class DeliteCollectionUpdate[A:Manifest](x: Exp[DeliteCollection[A]], n: Exp[Int], y: Exp[A]) extends Def[Unit]
-  case class DeliteCollectionUnsafeSetData[A:Manifest](x: Exp[DeliteCollection[A]], d: Exp[Array[A]], l: Exp[Int]) extends Def[Unit] // legacy...
+  case class DeliteCollectionUnsafeSetData[A:Manifest](x: Exp[DeliteCollection[A]], d: Exp[DeliteArray[A]], l: Exp[Int]) extends Def[Unit] // legacy...
 
   def dc_size[A:Manifest](x: Exp[DeliteCollection[A]]) = x match { // TODO: move to Opt trait ?
     case Def(e: DeliteOpMap[_,_,_]) => e.size
@@ -35,7 +36,7 @@ trait DeliteCollectionOpsExp extends DeliteCollectionOps with BaseFatExp with Ef
   def dc_apply[A:Manifest](x: Exp[DeliteCollection[A]], n: Exp[Int]) = reflectPure(DeliteCollectionApply(x,n))
   def dc_update[A:Manifest](x: Exp[DeliteCollection[A]], n: Exp[Int], y: Exp[A]) = reflectWrite(x)(DeliteCollectionUpdate(x,n,y))
 
-  def dc_unsafeSetData[A:Manifest](x: Exp[DeliteCollection[A]], d: Exp[Array[A]], l: Exp[Int]) = reflectWrite(x)(DeliteCollectionUnsafeSetData(x,d,l)) // legacy...
+  def dc_unsafeSetData[A:Manifest](x: Exp[DeliteCollection[A]], d: Exp[DeliteArray[A]], l: Exp[Int]) = reflectWrite(x)(DeliteCollectionUnsafeSetData(x,d,l)) // legacy...
 
 
   //////////////
