@@ -1,14 +1,11 @@
 package ppl.apps.dataquery.tpch
 
 import ppl.dsl.optiql.{OptiQLApplication, OptiQLApplicationRunner}
-import ppl.dsl.optiql.datastruct.scala.tpch._
-import ppl.dsl.optiql.datastruct.scala.container.DataTable
-import java.io.File
 
 object TPCHQ1 extends OptiQLApplicationRunner with TPCHQ1Trait
 object TPCHQ2 extends OptiQLApplicationRunner with TPCHQ2Trait
 
-trait TPCHBaseTrait extends OptiQLApplication {
+trait TPCHBaseTrait extends OptiQLApplication with Types {
 
   val queryName: String
   
@@ -36,17 +33,27 @@ trait TPCHBaseTrait extends OptiQLApplication {
     val tpchDataPath = args(0) 
 
     //load TPCH data
-    lineItems = TPCH.loadLineItems(tpchDataPath)
-    nations = TPCH.loadNations(tpchDataPath)
-    parts = TPCH.loadParts(tpchDataPath)
-    partSuppliers = TPCH.loadPartSuppliers(tpchDataPath)
-    regions = TPCH.loadRegions(tpchDataPath)
-    suppliers = TPCH.loadSuppliers(tpchDataPath)
+    lineItems = TableInputReader(tpchDataPath, LineItem())
+    nations = TableInputReader(tpchDataPath, Nation())
+    parts = TableInputReader(tpchDataPath, Part())
+    partSuppliers = TableInputReader(tpchDataPath, PartSupplier())
+    regions = TableInputReader(tpchDataPath, Region())
+    suppliers = TableInputReader(tpchDataPath, Supplier())
     println("Loading Complete")	
-    tic(lineItems,nations, parts, partSuppliers, regions, suppliers)
+    tic(lineItems, nations, parts, partSuppliers, regions, suppliers)
     query()
   }
 
+}
+
+object TPCHQ0 extends OptiQLApplicationRunner with TPCHQ0Trait
+trait TPCHQ0Trait extends TPCHBaseTrait {
+  val queryName = "Q0"
+  def query() = {
+    val q = regions
+    toc(q)
+    q.printAsTable(10)
+  }
 }
 
 //val res = lineItems Select(e => new Result { val l_shipdate = e.l_shipdate  }) Where(_.l_shipdate <= Date("1998-12-01"))

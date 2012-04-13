@@ -73,12 +73,9 @@ trait DeliteApplication extends DeliteOpsExp with ScalaCompile {
       writer.close()
     }
 
-    deliteGenerator.emitDataStructures(Config.buildDir + File.separator)
-
     for (g <- generators) {
       val baseDir = Config.buildDir + File.separator + g.toString + File.separator
       writeModules(baseDir)
-      g.emitDataStructures(baseDir + "datastructures" + File.separator)
       g.initializeGenerator(baseDir + "kernels" + File.separator)
     }
 
@@ -90,8 +87,14 @@ trait DeliteApplication extends DeliteOpsExp with ScalaCompile {
     }
     deliteGenerator.initializeGenerator(Config.buildDir)
     val sd = deliteGenerator.emitSource(liftedMain, "Application", stream)    
-    deliteGenerator.finalizeGenerator()
 
+    deliteGenerator.emitDataStructures(Config.buildDir + File.separator)
+    for (g <- generators) {
+      val baseDir = Config.buildDir + File.separator + g.toString + File.separator
+      g.emitDataStructures(baseDir + "datastructures" + File.separator)
+    }
+
+    deliteGenerator.finalizeGenerator()
     generators foreach { _.finalizeGenerator()}
     
     staticDataMap = Map() ++ sd map { case (s,d) => (deliteGenerator.quote(s), d) }

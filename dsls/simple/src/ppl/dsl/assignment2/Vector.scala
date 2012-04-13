@@ -1,7 +1,7 @@
 package ppl.dsl.assignment2
 
-import virtualization.lms.common.{Variables, VariablesExp, BaseFatExp}
 import ppl.delite.framework.ops._
+import scala.virtualization.lms.common.{ObjectOpsExp, Variables, VariablesExp, BaseFatExp}
 
 /**
  * Operations
@@ -67,11 +67,13 @@ trait VectorOps { this: SimpleVector =>
   def vectorPrint[A:Manifest](x: Rep[Vector[A]]): Rep[Unit]
 }
 
-trait VectorOpsExp extends VectorOps with DeliteCollectionOpsExp { this: SimpleVectorExp =>
+trait VectorOpsExp extends VectorOps with DeliteCollectionOpsExp with ObjectOpsExp { this: SimpleVectorExp =>
 
   //implemented via kernel embedding (sequential)
   case class PPrint[A:Manifest](x: Exp[Vector[A]], print: Block[Unit])
     extends DeliteOpSingleTask(print)
+
+  case class VectorToString(str: Block[String]) extends DeliteOpSingleTask(str)
 
   //implemented via Delite ops
   abstract class VectorMap[A:Manifest,B:Manifest] extends DeliteOpMapStruct[A,B,Vector[B]] {
@@ -152,14 +154,17 @@ trait VectorOpsExp extends VectorOps with DeliteCollectionOpsExp { this: SimpleV
   def vectorReduce[A:Manifest](x: Exp[Vector[A]], f: (Exp[A],Exp[A]) => Exp[A], zero: Exp[A]) = VectorReduceGeneric(x,f,zero)
 
   def vectorPrint[A:Manifest](x: Exp[Vector[A]]) = reflectEffect(PPrint(x, reifyEffectsHere(pprint_impl(x))))
+  def vectorToString[A:Manifest](x: Exp[Vector[A]]) = VectorToString(reifyEffectsHere(vector_toString_impl(x)))
 
-  private def ifVector[A:Manifest, R](x: Exp[DeliteCollection[A]])(then: Exp[Vector[A]] => R)(orElse: => R): R = {
-    if (x.Type.erasure == classOf[Vector[A]]) then(x.asInstanceOf[Exp[Vector[A]]]) else orElse
-  }
+  private def isVector(x: Exp[Any]) = x.Type.erasure == classOf[Vector[_]]
+  private def asVector[A:Manifest](x: Exp[Any]) = x.asInstanceOf[Exp[Vector[A]]]
+  private def argM[A,B](m: Manifest[A]) = m.typeArguments(0).asInstanceOf[Manifest[B]]
 
-  override def dc_size[A:Manifest](x: Exp[DeliteCollection[A]]): Exp[Int] = ifVector(x)(vectorLength(_))(super.dc_size(x))
-  override def dc_apply[A:Manifest](x: Exp[DeliteCollection[A]], idx: Exp[Int]): Exp[A] = ifVector(x)(vectorApply(_, idx))(super.dc_apply(x, idx))
-  override def dc_update[A:Manifest](x: Exp[DeliteCollection[A]], idx: Exp[Int], value: Exp[A]): Exp[Unit] = ifVector(x)(v => /*reifyEffectsHere*/(darray_update(v.data, idx, value)))(super.dc_update(x,idx,value))
+  override def dc_size[A:Manifest](x: Exp[DeliteCollection[A]]): Exp[Int] = if (isVector(x)) vectorLength(asVector(x)) else super.dc_size(x)
+  override def dc_apply[A:Manifest](x: Exp[DeliteCollection[A]], idx: Exp[Int]): Exp[A] = if (isVector(x)) vectorApply(asVector(x), idx) else super.dc_apply(x,idx)
+  override def dc_update[A:Manifest](x: Exp[DeliteCollection[A]], idx: Exp[Int], value: Exp[A]): Exp[Unit] = if (isVector(x)) darray_update(asVector(x).data, idx, value) else super.dc_update(x,idx,value)
+
+  override def object_toString(x: Exp[Any]) = if (isVector(x)) vectorToString(asVector[Any](x))(argM(x.Type)) else super.object_toString(x)
 
   /* override def mirror[A:Manifest](e: Def[A], f: Transformer): Exp[A] = (e match {
     case _ => super.mirror(e,f)
@@ -172,6 +177,7 @@ trait VectorOpsExp extends VectorOps with DeliteCollectionOpsExp { this: SimpleV
  */
 trait VectorImplOps { this: SimpleVector =>
   def pprint_impl[A:Manifest](x: Rep[Vector[A]]): Rep[Unit]
+  def vector_toString_impl[A:Manifest](x: Rep[Vector[A]]): Rep[String]
 }
 
 trait VectorImplOpsStandard extends VectorImplOps {
@@ -183,5 +189,14 @@ trait VectorImplOpsStandard extends VectorImplOps {
       print(x(i)); print(" ")
     }
     print("]\\n")
+  }
+
+  //TODO: lifted StringBuilder? or should we override print instead of toString?
+  def vector_toString_impl[A:Manifest](x: Rep[Vector[A]]): Rep[String] = {
+    var str = unit("[ ")
+    for (i <- 0 until x.length) {
+      str = str + x(i).toStringL + " "
+    }
+    str + "]\\n"
   }
 }

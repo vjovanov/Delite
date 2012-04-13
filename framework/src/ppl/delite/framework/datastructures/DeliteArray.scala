@@ -106,30 +106,33 @@ trait DeliteArrayOpsExpOpt extends DeliteArrayOpsExp with StructExpOptCommon {
   //TODO: choosing the length of the first array creates an unnecessary dependency (all arrays must have same length)
   override def darray_length[T:Manifest](da: Exp[DeliteArray[T]]) = da match {
     case Def(Loop(size,_,b:DeliteCollectElem[_,_])) if b.cond == Nil => size
-    case Def(Struct(tag, elems:Map[String,Exp[DeliteArray[Any]]])) =>
-      darray_length(elems.head._2)(elems.head._2.Type.typeArguments(0).asInstanceOf[Manifest[Any]])
+    case Def(Struct(tag, elems:Map[String,Exp[DeliteArray[a]]])) =>
+      darray_length(elems.head._2)(argManifest(elems.head._2.Type))
     case _ => super.darray_length(da)
   }
 
   override def darray_apply[T:Manifest](da: Exp[DeliteArray[T]], i: Exp[Int]) = da match {
-    case Def(Struct(tag, elems:Map[String,Exp[DeliteArray[Any]]])) =>
-      struct[T](elems.map(p=>(p._1, darray_apply(p._2,i)(p._2.Type.typeArguments(0).asInstanceOf[Manifest[Any]]))))
+    case Def(Struct(tag, elems:Map[String,Exp[DeliteArray[a]]])) =>
+      struct[T](elems.map(p=>(p._1, darray_apply(p._2,i)(argManifest(p._2.Type)))))
     case _ => super.darray_apply(da, i)
   }
 
   override def darray_update[T:Manifest](da: Exp[DeliteArray[T]], i: Exp[Int], x: Exp[T]) = da match {
-    case Def(Struct(tag, elems:Map[String,Exp[DeliteArray[Any]]])) =>
-      elems.foreach(p=>darray_update(p._2,i,field[T](x.asInstanceOf[Exp[Record]],p._1))(p._2.Type.typeArguments(0).asInstanceOf[Manifest[Any]]))
+    case Def(Struct(tag, elems:Map[String,Exp[DeliteArray[a]]])) =>
+      elems.foreach(p=>darray_update(p._2,i,field[a](x.asInstanceOf[Exp[Record]],p._1)(argManifest(p._2.Type)))(argManifest(p._2.Type)))
     case _ => super.darray_update(da, i, x)
   }
 
-  //forwarder to appease type-checker
-  /* private def dnew[T:Manifest](length: Exp[Int]): Rep[DeliteArray[T]] = darray_new(length)
+  private def argManifest[A,B](m: Manifest[A]): Manifest[B] = m.typeArguments(0).asInstanceOf[Manifest[B]]
 
+  //forwarder to appease type-checker
+  private def dnew[T:Manifest](length: Exp[Int]): Rep[DeliteArray[T]] = darray_new(length)
+
+  //TODO: if T <: Record, but no RefinedManifest -- how do we map the fields?
   override def darray_new[T:Manifest](length: Exp[Int]) = manifest[T] match {
     case rm: RefinedManifest[T] => struct[DeliteArray[T]](rm.fields.map(p=>(p._1,dnew(length)(p._2))):_*)
     case _ => super.darray_new(length)
-  } */
+  }
 
 }
 

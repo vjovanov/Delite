@@ -1,6 +1,5 @@
 package ppl.dsl.optiql.ops
 
-import ppl.dsl.optiql.datastruct.scala.container.{DataTable, Grouping}
 import java.io.PrintWriter
 import scala.virtualization.lms.common.{Base, ScalaGenFat, BaseFatExp}
 import ppl.dsl.optiql.{OptiQL, OptiQLExp}
@@ -74,35 +73,33 @@ trait QueryableOps extends Base { this: OptiQL =>
 
 trait QueryableOpsExp extends QueryableOps with BaseFatExp { this: OptiQLExp =>
 
-  case class QueryableWhere[TSource:Manifest](in: Exp[DataTable[TSource]], cond: Exp[TSource] => Exp[Boolean]) extends DeliteOpFilter[TSource, TSource,DataTable[TSource]] {
-    def alloc = DataTable[TSource]()
+  case class QueryableWhere[TSource:Manifest](in: Exp[DataTable[TSource]], cond: Exp[TSource] => Exp[Boolean]) extends DeliteOpFilterStruct[TSource, TSource, DataTable[TSource]] {
     override def allocWithArray = data => DataTable(data, data.length)
     def func = e => e
     val size = copyTransformedOrElse(_.size)(in.size)
   }
      
-  case class QueryableSelect[TSource:Manifest, TResult:Manifest](in: Exp[DataTable[TSource]], func: Exp[TSource] => Exp[TResult]) extends DeliteOpMap[TSource, TResult, DataTable[TResult]] {
-    def alloc = DataTable[TResult](in.size)
+  case class QueryableSelect[TSource:Manifest, TResult:Manifest](in: Exp[DataTable[TSource]], func: Exp[TSource] => Exp[TResult]) extends DeliteOpMapStruct[TSource, TResult, DataTable[TResult]] {
     override def allocWithArray = data => DataTable(data, data.length)
     val size = copyTransformedOrElse(_.size)(in.size)
   }
 
-  case class QueryableSum[TSource:Manifest](in: Exp[DataTable[TSource]], map: Exp[TSource] => Exp[Double]) extends DeliteOpMapReduce[TSource,Double] {
+  case class QueryableSum[TSource:Manifest](in: Exp[DataTable[TSource]], map: Exp[TSource] => Exp[Double]) extends DeliteOpMapReduceStruct[TSource,Double] {
     val size = copyTransformedOrElse(_.size)(in.size)
     def zero = 0
     def reduce = _ + _
   }
   
   //these are hacked up for now untill we have proper Delite support
-  case class HackQueryableGroupBy[TSource:Manifest, TKey:Manifest](s: Exp[DataTable[TSource]], v:Sym[TSource], key: Block[TKey]) extends Def[DataTable[Grouping[TKey, TSource]]]
-  case class HackQueryableSum[TSource:Manifest](s:Exp[DataTable[TSource]], sym: Sym[TSource], value: Block[Double]) extends Def[Double]
+  //case class HackQueryableGroupBy[TSource:Manifest, TKey:Manifest](s: Exp[DataTable[TSource]], v:Sym[TSource], key: Block[TKey]) extends Def[DataTable[Grouping[TKey, TSource]]]
+  //case class HackQueryableSum[TSource:Manifest](s:Exp[DataTable[TSource]], sym: Sym[TSource], value: Block[Double]) extends Def[Double]
   
-  case class QueryableAverage[TSource:Manifest](s: Exp[DataTable[TSource]], avgSelector: Rep[TSource] => Rep[Double]) extends Def[Double]
+  //case class QueryableAverage[TSource:Manifest](s: Exp[DataTable[TSource]], avgSelector: Rep[TSource] => Rep[Double]) extends Def[Double]
   
   //case class QueryableCount[TSource:Manifest](s: Exp[DataTable[TSource]]) extends Def[Int]
 
-  case class QueryableGroupingToDataTable[TSource:Manifest, TKey:Manifest](g: Rep[Grouping[TKey, TSource]]) extends Def[DataTable[TSource]]
-  case class QueryableGroupingKey[TSource:Manifest, TKey:Manifest](g: Rep[Grouping[TKey, TSource]]) extends Def[TKey]
+  //case class QueryableGroupingToDataTable[TSource:Manifest, TKey:Manifest](g: Rep[Grouping[TKey, TSource]]) extends Def[DataTable[TSource]]
+  //case class QueryableGroupingKey[TSource:Manifest, TKey:Manifest](g: Rep[Grouping[TKey, TSource]]) extends Def[TKey]
   
   case class NewOrderedQueryable[TSource:Manifest](s: Exp[DataTable[TSource]], orig: Exp[DataTable[TSource]], sel: (Exp[Int], Exp[Int]) => Exp[Int]) extends Def[OrderedQueryable[TSource]]
 
@@ -259,8 +256,8 @@ trait QueryableOpsExp extends QueryableOps with BaseFatExp { this: OptiQLExp =>
   }
   
   override def boundSyms(e: Any): List[Sym[Any]] = e match {    
-    case HackQueryableGroupBy(s,v,k) => v::syms(k)
-    case HackQueryableSum(s,sym,value) => sym::syms(value)
+    //case HackQueryableGroupBy(s,v,k) => v::syms(k)
+    //case HackQueryableSum(s,sym,value) => sym::syms(value)
     case _ => super.boundSyms(e)
   }  
   
@@ -277,6 +274,7 @@ trait ScalaGenQueryableOps extends ScalaGenFat {
                                        emitBlock(Block(n)) 
                                        stream.println(quote(n))
                                        stream.println("}")
+    /*
     case HackQueryableGroupBy(s, v, k) =>  {
       stream.println("val " + quote(sym) + " =  " + quote(s) + ".GroupBy( " + quote(v) + " => {")   
       emitBlock(k)   
@@ -290,6 +288,7 @@ trait ScalaGenQueryableOps extends ScalaGenFat {
     
     case QueryableGroupingToDataTable(g) => emitValDef(sym, "generated.scala.container.DataTable.convertIterableToDataTable(" + quote(g) + ")")
     case QueryableGroupingKey(g) => emitValDef(sym, quote(g) + ".key")
+    */
     case _ => super.emitNode(sym,rhs)
   }
 }

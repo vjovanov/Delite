@@ -1,13 +1,12 @@
+/*
 package ppl.dsl.optiql.ops
 
 import scala.virtualization.lms.common.{ScalaGenEffect, Base, EffectExp, ArrayOpsExp}
 import java.io.PrintWriter
 import ppl.delite.framework.datastructures._
-import ppl.dsl.optiql.datastruct.scala.tpch._
-import ppl.dsl.optiql.datastruct.scala.container.DataTable
-import ppl.dsl.optiql.OptiQLExp
+import ppl.dsl.optiql.{OptiQL,OptiQLExp}
 
-trait HackOps extends Base {
+trait HackOps extends Base { this: OptiQL =>
 
   object TPCH {
     def loadCustomers(path: Rep[String]) = hackops_obj_loadcustomers(path)
@@ -53,8 +52,6 @@ trait HackOpsExp extends HackOps with FieldAccessOpsExp with EffectExp with Arra
   }
 
   def hackops_obj_loadlineitems(path: Rep[String]): Rep[LineItemTable] = {
-    import ppl.dsl.optiql.datastruct.scala.liftables.LineItem
-    import ppl.dsl.optiql.datastruct.scala.util.Date
 
     val labels = Map(
     "l_orderkey"-> manifest[Int],
@@ -80,7 +77,6 @@ trait HackOpsExp extends HackOps with FieldAccessOpsExp with EffectExp with Arra
   }
 
   def hackops_obj_loadparts(path: Rep[String]): Rep[PartTable] = {
-    import ppl.dsl.optiql.datastruct.scala.liftables.Part
 
     val labels = Map(
       "p_partkey"->manifest[Int],
@@ -99,7 +95,6 @@ trait HackOpsExp extends HackOps with FieldAccessOpsExp with EffectExp with Arra
   }
 
   def hackops_obj_loadpartsuppliers(path: Rep[String]): Rep[PartSupplierTable] = {
-    import ppl.dsl.optiql.datastruct.scala.liftables.PartSupplier
 
     val labels = Map(
       "ps_partkey"->manifest[Int],
@@ -114,7 +109,6 @@ trait HackOpsExp extends HackOps with FieldAccessOpsExp with EffectExp with Arra
   }
   
   def hackops_obj_loadsuppliers(path: Rep[String]): Rep[SupplierTable] = {
-    import ppl.dsl.optiql.datastruct.scala.liftables.Supplier
 
     val labels = Map(
       "s_suppkey"->manifest[Int],
@@ -131,7 +125,6 @@ trait HackOpsExp extends HackOps with FieldAccessOpsExp with EffectExp with Arra
   }
 
   def hackops_obj_loadnations(path: Rep[String]): Rep[NationTable] = {
-    import ppl.dsl.optiql.datastruct.scala.liftables.Nation
 
     val labels = Map(
       "n_nationkey"->manifest[Int],
@@ -145,7 +138,6 @@ trait HackOpsExp extends HackOps with FieldAccessOpsExp with EffectExp with Arra
   }
 
   def hackops_obj_loadregions(path: Rep[String]): Rep[RegionTable] = {
-    import ppl.dsl.optiql.datastruct.scala.liftables.Region
 
     val labels = Map(
       "r_regionkey"->manifest[Int],
@@ -223,3 +215,4 @@ trait ScalaGenHackOps extends ScalaGenEffect {
     case _ => super.emitNode(sym, rhs)
   }
 }
+*/

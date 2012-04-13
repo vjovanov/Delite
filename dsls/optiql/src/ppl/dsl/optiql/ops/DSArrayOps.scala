@@ -1,6 +1,5 @@
 package ppl.dsl.optiql.ops
 
-import ppl.dsl.optiql.datastruct.scala.container.{DataTable, Grouping}
 import java.io.PrintWriter
 import scala.virtualization.lms.common.{Base, ScalaGenFat, BaseFatExp, LoopsFatExp, IfThenElseFatExp, TupleOpsExp, ArrayOpsExp, LoopFusionOpt}
 import scala.virtualization.lms.internal.GenericFatCodegen
@@ -85,13 +84,13 @@ trait DSArrayOpsExp extends BaseFatExp with ArrayOpsExp with TupleOpsExp with Lo
 
   // overrides for optimization
   override def simpleLoop[A:Manifest](size: Exp[Int], v: Sym[Int], body: Def[A]): Exp[A] = body match {
-    case b: DeliteCollectElem[A,Array[A]] => b.func match { // unchecked!
+    case b: DeliteCollectElem[A,DeliteArray[A]] => b.func match { // unchecked!
       // split collect of struct
       case Block(Def(Struct(tag, elems))) => 
         assert(b.alloc == Block(b.aV), "TODO: only works on simple arrays for now")
-        def copyLoop[B:Manifest](func: Block[B]): Exp[Array[B]] = {
-          val aV = fresh[Array[B]]
-          simpleLoop(size, v, DeliteCollectElem[B,Array[B]](aV = aV, alloc = reifyEffects(aV), cond = b.cond, func = func))
+        def copyLoop[B:Manifest](func: Block[B]): Exp[DeliteArray[B]] = {
+          val aV = fresh[DeliteArray[B]]
+          simpleLoop(size, v, DeliteCollectElem[B,DeliteArray[B]](aV = aV, alloc = reifyEffects(aV), cond = b.cond, func = func))
         }
         
         struct[A]("Array"::tag, elems.map(p=>(p._1, copyLoop(Block(p._2))(p._2.Type))))
@@ -151,8 +150,8 @@ trait DSArrayOpsExp extends BaseFatExp with ArrayOpsExp with TupleOpsExp with Lo
 
            arraySelect[cc1](size) { i => 
              numeric_divide(
-               array_apply(l1.asInstanceOf[Exp[Array[cc1]]],i)(mtype(d.mev)),
-               array_apply(l2.asInstanceOf[Exp[Array[cc1]]],i)(mtype(d.mev))
+               darray_apply(l1.asInstanceOf[Exp[DeliteArray[cc1]]],i)(mtype(d.mev)),
+               darray_apply(l2.asInstanceOf[Exp[DeliteArray[cc1]]],i)(mtype(d.mev))
               )(d.aev.asInstanceOf[Numeric[cc1]],mtype(d.mev))
             } (mtype(d.mev)) .asInstanceOf[Exp[A]]
 
@@ -166,13 +165,13 @@ trait DSArrayOpsExp extends BaseFatExp with ArrayOpsExp with TupleOpsExp with Lo
       case _ => super.simpleLoop(size, v, body)
     }
 
-    case b: DeliteHashCollectElem[k,A,Array[Array[A]]] => b.valFunc match { // unchecked!
+    case b: DeliteHashCollectElem[k,A,DeliteArray[DeliteArray[A]]] => b.valFunc match { // unchecked!
       // split hashcollect of struct values
       case Block(Def(Struct(tag, elems))) => 
         //assert(b.alloc == Block(b.aV), "TODO: only works on simple arrays for now")
-        def copyLoop[B:Manifest](valFunc: Block[B]): Exp[Array[Array[B]]] = {
-          //val aV = fresh[Array[B]]
-          simpleLoop(size, v, DeliteHashCollectElem[k,B,Array[Array[B]]](cond = b.cond, keyFunc = b.keyFunc, valFunc = valFunc))
+        def copyLoop[B:Manifest](valFunc: Block[B]): Exp[DeliteArray[DeliteArray[B]]] = {
+          //val aV = fresh[DeliteArray[B]]
+          simpleLoop(size, v, DeliteHashCollectElem[k,B,DeliteArray[DeliteArray[B]]](cond = b.cond, keyFunc = b.keyFunc, valFunc = valFunc))
         }
 
         struct[A]("Array"::"Array"::tag, elems.map(p=>(p._1, copyLoop(Block(p._2))(p._2.Type))))
@@ -225,20 +224,20 @@ trait DSArrayOpsExp extends BaseFatExp with ArrayOpsExp with TupleOpsExp with Lo
 
   // ******** api *********
 
-  def arraySelect[A:Manifest](size: Exp[Int])(func: Exp[Int]=>Exp[A]): Exp[Array[A]] = {
+  def arraySelect[A:Manifest](size: Exp[Int])(func: Exp[Int]=>Exp[A]): Exp[DeliteArray[A]] = {
     val v = fresh[Int]
-    val aV = fresh[Array[A]]
-    simpleLoop(size,v,DeliteCollectElem[A, Array[A]](
+    val aV = fresh[DeliteArray[A]]
+    simpleLoop(size,v,DeliteCollectElem[A, DeliteArray[A]](
       aV = aV,
       alloc = reifyEffects(aV),
       func = reifyEffects(func(v))
     ))
   }
   
-  def arrayWhere[A:Manifest](size: Exp[Int])(cond: Exp[Int]=>Exp[Boolean])(func: Exp[Int]=>Exp[A]): Exp[Array[A]] = {
+  def arrayWhere[A:Manifest](size: Exp[Int])(cond: Exp[Int]=>Exp[Boolean])(func: Exp[Int]=>Exp[A]): Exp[DeliteArray[A]] = {
     val v = fresh[Int]
-    val aV = fresh[Array[A]]
-    simpleLoop(size,v,DeliteCollectElem[A, Array[A]](
+    val aV = fresh[DeliteArray[A]]
+    simpleLoop(size,v,DeliteCollectElem[A, DeliteArray[A]](
       aV = aV,
       alloc = reifyEffects(aV),
       func = reifyEffects(func(v)),
@@ -246,26 +245,26 @@ trait DSArrayOpsExp extends BaseFatExp with ArrayOpsExp with TupleOpsExp with Lo
     ))
   }
 
-  case class ArrayFlatten[A](data: Exp[Array[Array[A]]]) extends Def[Array[A]]
-  def arrayFlatten[A:Manifest](data: Exp[Array[Array[A]]]): Exp[Array[A]] = data match {
-    case Def(Struct(pre::tag,elems:Map[String,Exp[Array[Array[A]]]])) =>
+  case class ArrayFlatten[A](data: Exp[DeliteArray[DeliteArray[A]]]) extends Def[DeliteArray[A]]
+  def arrayFlatten[A:Manifest](data: Exp[DeliteArray[DeliteArray[A]]]): Exp[DeliteArray[A]] = data match {
+    case Def(Struct(pre::tag,elems:Map[String,Exp[DeliteArray[DeliteArray[A]]]])) =>
       assert(pre == "Array")
-      def unwrap[A](m:Manifest[Array[A]]): Manifest[A] = m.typeArguments match {
+      def unwrap[A](m:Manifest[DeliteArray[A]]): Manifest[A] = m.typeArguments match {
         case a::_ => mtype(a)
         case _ => 
           if (m.erasure.isArray) mtype(Manifest.classType(m.erasure.getComponentType))
           else { printerr("warning: arrayFlatten expect type Array[A] but got "+m+" for input " + data.toString + "/" + elems.toString); mtype(manifest[Any]) }
       }
-      struct[Array[A]](tag, elems.map(p=>(p._1, arrayFlatten(p._2)(unwrap(unwrap(p._2.Type))))))
+      struct[DeliteArray[A]](tag, elems.map(p=>(p._1, arrayFlatten(p._2)(unwrap(unwrap(p._2.Type))))))
     case _ => ArrayFlatten(data)
   }
     
   // ---- hashing
 
-  def arrayDistinct[A:Manifest](size: Exp[Int])(func: Exp[Int]=>Exp[A]): Exp[Array[A]] = {
+  def arrayDistinct[A:Manifest](size: Exp[Int])(func: Exp[Int]=>Exp[A]): Exp[DeliteArray[A]] = {
     val v = fresh[Int]
     val rV = (fresh[A], fresh[A])
-    simpleLoop(size,v,DeliteHashReduceElem[A,A, Array[A]](
+    simpleLoop(size,v,DeliteHashReduceElem[A,A, DeliteArray[A]](
       //aV = aV,
       //alloc = reifyEffects(aV),
       keyFunc = reifyEffects(func(v)),
@@ -276,10 +275,10 @@ trait DSArrayOpsExp extends BaseFatExp with ArrayOpsExp with TupleOpsExp with Lo
     ))
   }
   
-  def arrayGroup[K:Manifest,V:Manifest](size: Exp[Int])(keyFunc: Exp[Int]=>Exp[K])(valFunc: Exp[Int]=>Exp[V]): Exp[Array[Array[V]]] = {
+  def arrayGroup[K:Manifest,V:Manifest](size: Exp[Int])(keyFunc: Exp[Int]=>Exp[K])(valFunc: Exp[Int]=>Exp[V]): Exp[DeliteArray[DeliteArray[V]]] = {
     val v = fresh[Int]
-    //val aV = fresh[Array[A]]
-    simpleLoop(size,v,DeliteHashCollectElem[K,V, Array[Array[V]]](
+    //val aV = fresh[DeliteArray[A]]
+    simpleLoop(size,v,DeliteHashCollectElem[K,V, DeliteArray[DeliteArray[V]]](
       //aV = aV,
       //alloc = reifyEffects(aV),
       keyFunc = reifyEffects(keyFunc(v)),
@@ -290,7 +289,7 @@ trait DSArrayOpsExp extends BaseFatExp with ArrayOpsExp with TupleOpsExp with Lo
 
   def indexBuild[K:Manifest](size: Exp[Int])(keyFunc: Exp[Int]=>Exp[K]): Exp[Map[K,Int]] = {
     val v = fresh[Int]
-    //val aV = fresh[Array[A]]
+    //val aV = fresh[DeliteArray[A]]
     simpleLoop(size,v,DeliteHashIndexElem[K,Map[K,Int]](
       //aV = aV,
       //alloc = reifyEffects(aV),
@@ -350,9 +349,9 @@ trait DSArrayOpsExp extends BaseFatExp with ArrayOpsExp with TupleOpsExp with Lo
 
   // ---- sorting
 
-  case class ArraySort(len: Exp[Int], v: (Sym[Int],Sym[Int]), comp: Block[Boolean]) extends Def[Array[Int]]
+  case class ArraySort(len: Exp[Int], v: (Sym[Int],Sym[Int]), comp: Block[Boolean]) extends Def[DeliteArray[Int]]
 
-  def arraySort(size: Exp[Int])(compFunc: (Exp[Int],Exp[Int])=>Exp[Boolean]): Exp[Array[Int]] = {
+  def arraySort(size: Exp[Int])(compFunc: (Exp[Int],Exp[Int])=>Exp[Boolean]): Exp[DeliteArray[Int]] = {
     val v = (fresh[Int],fresh[Int])
     ArraySort(size, v, reifyEffects(compFunc(v._1,v._2)))
   }
