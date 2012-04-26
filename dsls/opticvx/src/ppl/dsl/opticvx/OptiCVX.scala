@@ -88,6 +88,14 @@ trait OptiCVXScalaCodeGenPkg extends ScalaGenDSLOps
 //   this: OptiMLApplication =>
 // }
 trait OptiCVX extends OptiCVXScalaOpsPkg
+  with OptVarOps
+  with ExprShapeOps
+  with ExprOps
+  with FunctionOps
+  with ConstraintOps
+  with VectorOps
+  with ObjectiveOps
+  with ConstExprOps
   //with OptVarOps with ExprOps with ConstraintOps
   //with ObjectiveOps with FunctionOps
   //awith ConstExprOps
@@ -110,6 +118,14 @@ trait OptiCVXCompiler extends OptiCVX {
 trait OptiCVXExp extends OptiCVXCompiler with OptiCVXScalaOpsPkgExp 
   with ScalaOpsPkgExp
   with DeliteOpsExp
+  with OptVarOpsExp
+  with ExprShapeOpsExp
+  with ExprOpsExp
+  with FunctionOpsExp
+  with ConstraintOpsExp
+  with VectorOpsExp
+  with ObjectiveOpsExp
+  with ConstExprOpsExp
   //with OptVarOpsExp with ExprOpsExp with ConstraintOpsExp
   //with ObjectiveOpsExp with FunctionOpsExp
   //with ConstExprOpsExp
@@ -190,6 +206,14 @@ trait OptiCVXCodeGenBase extends GenericFatCodegen with codegen.Utils {
 trait OptiCVXCodeGenScala extends OptiCVXCodeGenBase
   with ScalaCodeGenPkg
   with ScalaGenDeliteOps
+  with ScalaGenOptVarOps
+  with ScalaGenExprShapeOps
+  with ScalaGenExprOps
+  with ScalaGenFunctionOps
+  with ScalaGenConstraintOps
+  with ScalaGenVectorOps
+  with ScalaGenObjectiveOps
+  with ScalaGenConstExprOps
   //with ScalaGenOptVarOps with ScalaGenExprOps with ScalaGenConstraintOps
   //with ScalaGenObjectiveOps with ScalaGenFunctionOps
   //with ScalaGenConstExprOps
