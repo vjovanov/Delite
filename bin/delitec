@@ -81,6 +81,8 @@ def stage(runner, params, opts):
     DELITE_HOME = delitecommon.DELITE_HOME
     SCALA_VIRT_HOME = delitecommon.SCALA_VIRT_HOME
     
+    scala_virt_version = "scala-2.10"
+    
     #add classpaths for Delite
     cp = " -cp "
     cp = cp + LMS_HOME + "/*" + os.pathsep
