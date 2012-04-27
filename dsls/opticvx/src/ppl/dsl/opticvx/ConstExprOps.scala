@@ -6,6 +6,8 @@ import scala.virtualization.lms.common.{EffectExp, BaseExp, Base}
 import scala.virtualization.lms.common.ScalaGenBase
 import ppl.delite.framework.ops.{DeliteOpsExp}
 
+import scala.collection.immutable.Set
+
 import java.io.PrintWriter
 
 
@@ -20,10 +22,10 @@ trait ConstExprOpsExp extends ConstExprOps
 
   case class ExprInputExp(u: Exp[Double]) extends Def[Expr] with ExprTr {
     def get_Ax(x: Exp[CVXVector]): Exp[CVXVector] = {
-      vector_zeros(problem_size)
-    }
-    def get_ATy(y: Exp[CVXVector]): Exp[CVXVector] = {
       vector_zeros(Const(1))
+    }
+    def get_ATy(y: Exp[CVXVector], sz: Exp[Int]): Exp[CVXVector] = {
+      vector_zeros(sz)
     }
     def get_b(): Exp[CVXVector] = {
       vector1(u)
@@ -31,6 +33,10 @@ trait ConstExprOpsExp extends ConstExprOps
     
     def vexity(): Signum = Vexity.affine
     def shape(): Exp[ExprShape] = scalar()
+
+    def vars(): Set[OptVarTr] = Set[OptVarTr]()
+
+    override def toString(): String = "input(" + u.toString + ")"
   } 
   def inputscalar(u: Exp[Double]): Exp[Expr] = ExprInputExp(u)
 }

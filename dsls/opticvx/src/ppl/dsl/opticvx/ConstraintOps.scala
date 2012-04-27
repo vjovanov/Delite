@@ -13,7 +13,8 @@ trait ConstraintOps extends Base {
   
   def infix_>=(x: Rep[Expr], y: Rep[Expr]): Rep[Unit]
   def infix_<=(x: Rep[Expr], y: Rep[Expr]): Rep[Unit]
-  def infix_==(x: Rep[Expr], y: Rep[Expr]): Rep[Unit]
+  def infix_===(x: Rep[Expr], y: Rep[Expr]): Rep[Unit]
+  def __equal(x: Rep[Expr], y: Rep[Expr]): Rep[Unit]
 
   def constrain_zero(x: Rep[Expr]): Rep[Unit]
 
@@ -24,7 +25,27 @@ trait ConstraintOps extends Base {
 
 trait ConstraintOpsExp extends ConstraintOps
   with NumericOpsExp with OrderingOpsExp with BooleanOpsExp with EffectExp {
-  self: ExprOpsExp with ExprShapeOpsExp =>
+  self: ExprOpsExp with ExprShapeOpsExp with OptVarOpsExp =>
+
+  abstract class Constraint {
+    def vars(): Set[OptVarTr]
+  }
+  case class ConstrainZero(x: ExprTr) extends Constraint {
+    def vars() = x.vars()
+    override def toString() = "0 == " + (x).toString()
+  }
+  case class ConstrainNonnegative(x: ExprTr) extends Constraint {
+    def vars() = x.vars()
+    override def toString() = "0 <= " + (x).toString()
+  }
+  case class ConstrainSecondOrderCone(x: ExprTr, z: ExprTr) extends Constraint {
+    def vars() = x.vars() ++ z.vars()
+    override def toString() = "norm(" + (x).toString() + ") <= " + (z).toString()
+  }
+  case class ConstrainSemidefinite(x: ExprTr) extends Constraint {
+    def vars() = x.vars()
+    override def toString() = "semidefinite(" + (x).toString() + ")"
+  }
 
   def infix_>=(x: Exp[Expr], y: Exp[Expr]): Exp[Unit]
     = constrain_nonnegative(x-y)
@@ -32,47 +53,72 @@ trait ConstraintOpsExp extends ConstraintOps
   def infix_<=(x: Exp[Expr], y: Exp[Expr]): Exp[Unit]
     = constrain_nonnegative(y-x)
 
-  def infix_==(x: Exp[Expr], y: Exp[Expr]): Exp[Unit]
-    = constrain_zero(x-y)
+  def infix_===(x: Exp[Expr], y: Exp[Expr]): Exp[Unit] = {
+    constrain_zero(x-y)
+  }
+  def __equal(x: Rep[Expr], y: Rep[Expr]): Rep[Unit] = {
+    constrain_zero(x-y)
+  }
 
   def constrain_zero(x: Exp[Expr]): Exp[Unit] = {
-    if(!(canonicalize(x).vexity() <= Vexity.affine)) {
+    val cx = canonicalize(x)
+    if(!(cx.vexity() <= Vexity.affine)) {
       throw new Exception("Could not constrain non-affine expression to zero.")
+    }
+    val constraint = ConstrainZero(cx)
+    for(v <- cx.vars()) {
+      v.constraints +:= constraint
     }
   }
 
   def constrain_nonnegative(x: Exp[Expr]): Exp[Unit] = {
-    if(!(canonicalize(x).vexity() <= Vexity.concave)) {
+    val cx = canonicalize(x)
+    if(!(cx.vexity() <= Vexity.concave)) {
       throw new Exception("Could not constrain non-concave expression to be nonnegative.")
     }
-    canonicalize(canonicalize(x).shape()) match {
+    canonicalize(cx.shape()) match {
       case sh: ExprShapeScalarExp => 
       case _ => throw new Exception("Could not constrain non-scalar expression to be nonnegative.")
     }
+    val constraint = ConstrainNonnegative(cx)
+    for(v <- cx.vars()) {
+      v.constraints +:= constraint
+    }
   }
   def constrain_secondordercone(x: Exp[Expr], z: Exp[Expr]): Exp[Unit] = {
-    if(!(canonicalize(x).vexity() <= Vexity.affine)) {
+    val cx = canonicalize(x)
+    val cz = canonicalize(z)
+    if(!(cx.vexity() <= Vexity.affine)) {
       throw new Exception("Could not constrain non-affine expression as X-part of second-order cone.")
     }
-    canonicalize(canonicalize(x).shape()) match {
+    canonicalize(cx.shape()) match {
       case sh: ExprShapeVectorExp => 
       case _ => throw new Exception("Could not constrain non-vector expression as X-part of second-order cone.")
     }
-    if(!(canonicalize(z).vexity() <= Vexity.concave)) {
+    if(!(cz.vexity() <= Vexity.concave)) {
       throw new Exception("Could not constrain non-concave expression as Z-part of second-order cone.")
     }
-    canonicalize(canonicalize(z).shape()) match {
+    canonicalize(cz.shape()) match {
       case sh: ExprShapeScalarExp => 
       case _ => throw new Exception("Could not constrain non-scalar expression as Z-part of second-order cone.")
     }
+    val constraint = ConstrainSecondOrderCone(cx,cz)
+    for(v <- (cx.vars() ++ cz.vars())) {
+      v.constraints +:= constraint
+    }
   }
   def constrain_semidefinite(x: Exp[Expr]): Exp[Unit] = {
-    if(!(canonicalize(x).vexity() <= Vexity.affine)) {
+    val cx = canonicalize(x)
+    if(!(cx.vexity() <= Vexity.affine)) {
       throw new Exception("Could not constrain non-affine expression to be semidefinite.")
     }
-    canonicalize(canonicalize(x).shape()) match {
+    canonicalize(cx.shape()) match {
       case sh: ExprShapeSMatrixExp => 
       case _ => throw new Exception("Could not constrain non-matrix expression to be semidefinite.")
+    }
+    val constraint = ConstrainSemidefinite(cx)
+    for(v <- cx.vars()) {
+      v.constraints +:= constraint
     }
   }
 }

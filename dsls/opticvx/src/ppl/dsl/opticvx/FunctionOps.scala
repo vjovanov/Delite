@@ -6,6 +6,8 @@ import scala.virtualization.lms.common.{EffectExp, BaseExp, Base}
 import scala.virtualization.lms.common.ScalaGenBase
 import ppl.delite.framework.ops.{DeliteOpsExp}
 
+import scala.collection.immutable.Set
+
 import java.io.PrintWriter
 
 
@@ -75,11 +77,15 @@ trait FunctionOpsExp extends FunctionOps
 
   case class CvxFunAppExp(rv: Exp[Expr], vx: Signum) extends Def[Expr] with ExprTr {
     def get_Ax(x: Exp[CVXVector]): Exp[CVXVector] = canonicalize(rv).get_Ax(x)
-    def get_ATy(y: Exp[CVXVector]): Exp[CVXVector] = canonicalize(rv).get_ATy(y)
+    def get_ATy(y: Exp[CVXVector], sz: Exp[Int]): Exp[CVXVector] = canonicalize(rv).get_ATy(y, sz)
     def get_b(): Exp[CVXVector] = canonicalize(rv).get_b()
     
     def vexity(): Signum = vx
     def shape(): Exp[ExprShape] = canonicalize(rv).shape()
+    
+    def vars(): Set[OptVarTr] = canonicalize(rv).vars()
+
+    override def toString(): String = canonicalize(rv).toString()
   }
 
   def cvxfun1apply(va: Signum,

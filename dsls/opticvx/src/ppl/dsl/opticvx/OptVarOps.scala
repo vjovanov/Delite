@@ -6,6 +6,8 @@ import scala.virtualization.lms.common.{EffectExp, BaseExp, Base}
 import scala.virtualization.lms.common.ScalaGenBase
 import ppl.delite.framework.ops.{DeliteOpsExp}
 
+import scala.collection.immutable.{Set}
+
 import java.io.PrintWriter
 
 
@@ -13,16 +15,70 @@ trait OptVarOps extends Base {
 
   def variable(sh: Rep[ExprShape]): Rep[OptVar]
   def variable(): Rep[OptVar]
-
-  def problemsize(): Rep[Int]
 }
 
 trait OptVarOpsExp extends OptVarOps
   with NumericOpsExp with OrderingOpsExp with BooleanOpsExp with EffectExp {
-  self: ExprShapeOpsExp with ExprOpsExp with VectorOpsExp =>
+  self: ExprShapeOpsExp with ExprOpsExp with VectorOpsExp with ConstraintOpsExp with ObjectiveOpsExp =>
+
+  object OptVarTr {
+    private var nextID = 0
+    def getNextID(): Int = {
+      nextID += 1
+      nextID
+    }
+  }
 
   trait OptVarTr extends ExprTr {
-    
+    //for pretty-printing the expressions
+    val ID: Int = OptVarTr.getNextID()
+
+    var constraints: Seq[Constraint] = Seq()
+    var bound: Boolean = false
+    var solved: Boolean = false
+
+    var lookup_offset: Exp[Int] = null
+
+    var value: Exp[CVXVector] = null
+
+    def get_Ax(x: Exp[CVXVector]): Exp[CVXVector] = {
+      if(solved) {
+        vector_zeros(size)
+      }
+      else {
+        vector_select(x, lookup_offset, size)
+      }
+    }
+    def get_ATy(y: Exp[CVXVector], sz: Exp[Int]): Exp[CVXVector] = {
+      if(solved) {
+        vector_zeros(sz)
+      }
+      else {
+        vector_cat(vector_cat(vector_zeros(lookup_offset), y), vector_zeros(sz - (lookup_offset + size)))
+      }
+    }
+    def get_b(): Exp[CVXVector] = {
+      if(solved) {
+        value
+      }
+      else {
+        vector_zeros(size)
+      }
+    }
+
+    def vexity(): Signum
+      = Vexity.affine
+
+    def vars(): Set[OptVarTr] = Set[OptVarTr](this)
+
+    override def toString(): String = {
+      canonicalize(shape()) match {
+        case sh: ExprShapeScalarExp => "x" + ID
+        case sh: ExprShapeVectorExp => "v" + ID
+        case sh: ExprShapeSMatrixExp => "m" + ID
+        case _ => throw new Exception("Error: Invalid expression shape.")
+      }
+    }
   }
 
   def canonicalize(x: Exp[OptVar]): OptVarTr = {
@@ -46,37 +102,15 @@ trait OptVarOpsExp extends OptVarOps
     }
   }
 
-  var problem_size: Exp[Int] = Const(0)
-
-  case class OptVarExp(val offset: Exp[Int], val sh: Exp[ExprShape]) extends Def[OptVar] with OptVarTr {
-    def get_Ax(x: Exp[CVXVector]): Exp[CVXVector] = {
-      vector_select(x, offset, canonicalize(sh).size)
-    }
-    def get_ATy(y: Exp[CVXVector]): Exp[CVXVector] = {
-      vector_cat(vector_cat(vector_zeros(offset), y), vector_zeros(problem_size - (offset + canonicalize(sh).size)))
-    }
-    def get_b(): Exp[CVXVector] = {
-      vector_zeros(problem_size)
-    }
-
-    def vexity(): Signum
-      = Vexity.affine
-
+  class OptVarExp(val sh: Exp[ExprShape]) extends Def[OptVar] with OptVarTr {
     def shape(): Exp[ExprShape]
       = sh
   }
 
-  def variable(sh: Exp[ExprShape]): Exp[OptVar] = {
-    val rv = OptVarExp(problem_size,sh)
-    problem_size = problem_size + canonicalize(sh).size
-    return rv
-  }
+  def variable(sh: Exp[ExprShape]): Exp[OptVar]
+    = new OptVarExp(sh)
 
   def variable(): Rep[OptVar] = variable(scalar())
-
-  def problemsize(): Exp[Int]
-    = problem_size
-
   
 }
 

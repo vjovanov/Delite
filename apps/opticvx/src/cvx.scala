@@ -24,13 +24,27 @@ trait HelloCVX extends OptiCVXApplication {
   }
   */
 
+/*
+cvx_begin
+variables x y u
+x + y <= 3
+x - u >= -2
+y + u <= 6
+min(x,min(y,u)) >= -6
+max(x,max(y,u)) <= 2
+minimize max(x,u)
+cvx_end
+*/
+
   def main() = {
-    println("Cheese!")
+    //println("Cheese!")
     val u = variable()
     val x = variable()
     val y = variable()
-    println("Vartle")
-    val z = variable(smatrix(3))
+    val a = variable()
+    val b = variable()
+    //println("Vartle")
+    //val z = variable(smatrix(3))
     //for(i <- 0 until 10) {
     //  println(i)
     //}
@@ -40,12 +54,21 @@ trait HelloCVX extends OptiCVXApplication {
       //constrain_nonnegative(3)
       //a <= const_to_expr_int(3)
     //}
-    max(x,y) <= -max(x,inv(u))
+    //max(x,y) <= -max(x,inv(u))
     //constrain_semidefinite(z)
-    minimize (max(x,u)) over (u,x,y,z)
+    x + y <= inputscalar(3.0)
+    x - u >= inputscalar(-2.0)
+    y + u <= inputscalar(6.0)
+    min(x,min(y,u)) >= inputscalar(-6.0)
+    max(x,max(y,u)) <= inputscalar(2.0)
+    minimize (max(x,u)) over (u,x,y)
+
+    a <= inputscalar(1.0)
+    b <= inputscalar(1.0)
+    minimize (a + b) over (a,b)
     //u <= zero(scalar())
-    constrain_nonnegative(u)
-    println(resolve(u))
+    //constrain_nonnegative(u)
+    //println(resolve(u))
   }
   
   val max = cvxfun (convex) arguments (increasing, increasing) body ((x,y) => {
@@ -56,15 +79,23 @@ trait HelloCVX extends OptiCVXApplication {
     t
   })
 
+  val min = cvxfun (concave) arguments (increasing, increasing) body ((x,y) => {
+    val t = variable()
+    t <= x
+    t <= y
+    minimize (-t) over (t)
+    t
+  })
+
   val inv = cvxfun (convex) arguments (decreasing) body ((x) => {
     val t = variable()
     val M = variable(symmetric_matrix(2))
-    M(1,1) == t
-    M(2,2) == x
-    M(1,2) == inputscalar(1.0)
+    M(0,0) == t
+    M(1,1) == x
+    M(0,1) == inputscalar(1.0)
     //M(2,1) == 1 (this will be handled by the symmetric constraint)
     constrain_semidefinite(M)
-    //minimize (t) over (t, M)
+    minimize (t) over (t, M)
     t
   })
 

@@ -6,6 +6,8 @@ import scala.virtualization.lms.common.{EffectExp, BaseExp, Base}
 import scala.virtualization.lms.common.ScalaGenBase
 import ppl.delite.framework.ops.{DeliteOpsExp}
 
+import scala.collection.immutable.Set
+
 import java.io.PrintWriter
 
 
@@ -40,11 +42,15 @@ trait ExprOpsExp extends ExprOps
 
   trait ExprTr {
     def get_Ax(x: Exp[CVXVector]): Exp[CVXVector]
-    def get_ATy(y: Exp[CVXVector]): Exp[CVXVector]
+    def get_ATy(y: Exp[CVXVector], sz: Exp[Int]): Exp[CVXVector]
     def get_b(): Exp[CVXVector]
     
     def vexity(): Signum
     def shape(): Exp[ExprShape]
+
+    def vars(): Set[OptVarTr]
+
+    def size: Exp[Int] = canonicalize(shape()).size
   }
 
   def canonicalize(x: Exp[Expr]): ExprTr = {
@@ -74,9 +80,9 @@ trait ExprOpsExp extends ExprOps
       val bx = canonicalize(b).get_Ax(x)
       vector_sum(ax,bx)
     }
-    def get_ATy(y: Exp[CVXVector]): Exp[CVXVector] = {
-      val ay = canonicalize(a).get_ATy(y)
-      val by = canonicalize(b).get_ATy(y)
+    def get_ATy(y: Exp[CVXVector], sz: Exp[Int]): Exp[CVXVector] = {
+      val ay = canonicalize(a).get_ATy(y,sz)
+      val by = canonicalize(b).get_ATy(y,sz)
       vector_sum(ay,by)
     }
     def get_b(): Exp[CVXVector] = {
@@ -90,6 +96,12 @@ trait ExprOpsExp extends ExprOps
 
     def shape(): Exp[ExprShape]
       = canonicalize(a).shape()
+
+    def vars(): Set[OptVarTr]
+      = canonicalize(a).vars() ++ canonicalize(b).vars()
+
+    override def toString(): String
+      = "(" + canonicalize(a).toString() + " + " + canonicalize(b).toString() + ")"
   }
   def sum(x: Exp[Expr], y: Exp[Expr]): Exp[Expr] = 
     ExprSumExp(x,y)
@@ -100,8 +112,8 @@ trait ExprOpsExp extends ExprOps
       val ax = canonicalize(a).get_Ax(x)
       vector_neg(ax)
     }
-    def get_ATy(y: Exp[CVXVector]): Exp[CVXVector] = {
-      val ay = canonicalize(a).get_ATy(y)
+    def get_ATy(y: Exp[CVXVector], sz: Exp[Int]): Exp[CVXVector] = {
+      val ay = canonicalize(a).get_ATy(y,sz)
       vector_neg(ay)
     }
     def get_b(): Exp[CVXVector] = {
@@ -114,6 +126,12 @@ trait ExprOpsExp extends ExprOps
 
     def shape(): Exp[ExprShape]
       = canonicalize(a).shape()
+
+    def vars(): Set[OptVarTr]
+      = canonicalize(a).vars()
+
+    override def toString(): String
+      = "(-" + canonicalize(a).toString() + ")"
   }
   def neg(x: Exp[Expr]): Exp[Expr] = 
     ExprNegExp(x)
@@ -126,8 +144,8 @@ trait ExprOpsExp extends ExprOps
     def get_Ax(x: Exp[CVXVector]): Exp[CVXVector] = {
       vector_select(canonicalize(a).get_Ax(x), i, Const(1))
     }
-    def get_ATy(y: Exp[CVXVector]): Exp[CVXVector] = {
-      canonicalize(a).get_ATy(vector_cat(vector_cat(vector_zeros(i),y),vector_zeros(problem_size-i-Const(1))))
+    def get_ATy(y: Exp[CVXVector], sz: Exp[Int]): Exp[CVXVector] = {
+      canonicalize(a).get_ATy(vector_cat(vector_cat(vector_zeros(i),y),vector_zeros(canonicalize(a).size-i-Const(1))),sz)
     }
     def get_b(): Exp[CVXVector] = {
       vector_select(canonicalize(a).get_b(), i, Const(1))
@@ -138,6 +156,12 @@ trait ExprOpsExp extends ExprOps
       else Vexity.none
     }
     def shape(): Exp[ExprShape] = scalar()
+
+    def vars(): Set[OptVarTr]
+      = canonicalize(a).vars()
+
+    override def toString(): String
+      = "(" + canonicalize(a).toString() + "[...])"
   }
   
   def indexat(x: Exp[Expr], i: Exp[Int]): Exp[Expr] = {

@@ -26,7 +26,7 @@ trait ExprShapeOpsExp extends ExprShapeOps
   }
 
   case class ExprShapeScalarExp extends Def[ExprShapeScalar] with ExprShapeTr {
-    def size: Exp[Int] = Const(0)
+    def size: Exp[Int] = Const(1)
   }
   case class ExprShapeVectorExp(val n: Exp[Int]) extends Def[ExprShapeVector] with ExprShapeTr {
     def size: Exp[Int] = n
