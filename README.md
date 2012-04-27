@@ -1,4 +1,4 @@
-Delite 2.0
-==========
+OptiCVX
+=======
 
-[Setup instructions](http://stanford-ppl.github.com/Delite/source.html)
+OptiCVX is a Delite DSL for convex optimization.
