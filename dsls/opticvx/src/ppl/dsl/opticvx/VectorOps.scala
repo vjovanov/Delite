@@ -1,8 +1,8 @@
 package ppl.dsl.opticvx
 
 import scala.virtualization.lms.common.ScalaOpsPkg
-import scala.virtualization.lms.common.{NumericOpsExp, OrderingOpsExp, BooleanOpsExp, IfThenElseExp}
-import scala.virtualization.lms.common.{EffectExp, BaseExp, Base}
+import scala.virtualization.lms.common.{NumericOpsExp, OrderingOpsExp, WhileExp, StringOpsExp, BooleanOpsExp, IfThenElseExp}
+import scala.virtualization.lms.common.{EffectExp, BaseExp, VariablesExp, Base}
 import scala.virtualization.lms.common.ScalaGenBase
 import ppl.delite.framework.ops.{DeliteOpsExp}
 
@@ -15,7 +15,8 @@ trait VectorOps extends Base {
 
 trait VectorOpsExp extends VectorOps
   with NumericOpsExp with OrderingOpsExp with BooleanOpsExp with EffectExp {
-
+  self: ExprOpsExp with StringOpsExp with WhileExp with VariablesExp =>
+  
   type CVXVector = Array[Double]
 
   //sum of two vectors
@@ -47,11 +48,27 @@ trait VectorOpsExp extends VectorOps
   case class Vector1(u: Exp[Double]) extends Def[CVXVector]
   def vector1(u: Exp[Double])
     = Vector1(u)
+    
+  case class VectorAt(x: Exp[CVXVector], i: Exp[Int]) extends Def[Double]
+  def vector_at(x: Exp[CVXVector], i: Exp[Int]): Exp[Double]
+    = VectorAt(x,i)
 
+  case class VectorLen(x: Exp[CVXVector]) extends Def[Int]
+  def vector_len(x: Exp[CVXVector]): Exp[Int]
+    = VectorLen(x)
+    
   //convert a vector to matlab string representation (DEBUG)
-  case class VectorToStringMatlab(x: Exp[CVXVector]) extends Def[String]
-  def vector_to_string_matlab(x: Exp[CVXVector]): Exp[String]
-    = VectorToStringMatlab(x)
+  //case class VectorToStringMatlab(x: Exp[CVXVector]) extends Def[String]
+  def vector_to_string_matlab(x: Exp[CVXVector]): Exp[String] = {
+    val vi = var_new[Int](Const(0))
+    val vacc = var_new[String](Const("["))
+    __whileDo(readVar(vi) < vector_len(x) - Const(1), {
+      var_assign(vacc, readVar(vacc) + string_valueof(vector_at(x,readVar(vi))) + Const(", "))
+      var_assign(vi, readVar(vi) + Const(1))
+    })
+    var_assign(vacc, readVar(vacc) + string_valueof(vector_at(x,vector_len(x)-Const(1))) + Const("]"))
+    readVar(vacc)
+  }
 }
 
 trait ScalaGenVectorOps extends ScalaGenBase {
@@ -99,6 +116,13 @@ trait ScalaGenVectorOps extends ScalaGenBase {
         stream.println("val " + quote(sym) + " = new Array[Double](1)")
         stream.println(quote(sym) + "(0) = " + quote(u))
         
+      case VectorAt(x, i) =>
+        stream.println("val " + quote(sym) + " = " + quote(x) + "(" + quote(i) + ")")
+
+      case VectorLen(x) =>
+        stream.println("val " + quote(sym) + " = " + quote(x) + ".length")
+        
+        /*
       case VectorToStringMatlab(x) =>
         stream.println("var stracc = \"[\"")
         stream.println("for(i <- 0 until " + quote(x) + ".length-1) {")
@@ -106,6 +130,7 @@ trait ScalaGenVectorOps extends ScalaGenBase {
         stream.println("}")
         stream.println("stracc = stracc + " + quote(x) + "(" + quote(x) + ".length-1) + \"]\"")
         stream.println("val " + quote(sym) + " = stracc")
+        */
         
       case _ => 
         super.emitNode(sym, rhs)

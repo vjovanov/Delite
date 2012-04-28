@@ -59,8 +59,8 @@ cvx_end
     x + y <= inputscalar(3.0)
     x - u >= inputscalar(-2.0)
     y + u <= inputscalar(6.0)
-    min(x,min(y,u)) >= inputscalar(-6.0)
-    max(x,max(y,u)) <= inputscalar(2.0)
+    min(x,min(y,-inv(u))) >= inputscalar(-6.0)
+    max(inv(x),max(y,u)) <= inputscalar(2.0)
     minimize (max(x,u)) over (u,x,y)
 
     a <= inputscalar(1.0)
