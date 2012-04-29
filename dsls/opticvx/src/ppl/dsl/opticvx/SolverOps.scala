@@ -102,25 +102,33 @@ trait SolverOpsExp extends SolverOps
     //val matlab_problem = matlab_make_problem(obj,cs,sz);
     //reflectEffect(MatlabSolveExp(matlab_problem, sz))
     print(matlab_make_problem(obj,cs,sz))
-    val objvect = obj.get_ATy(vector1(Const(1)),sz)
+    val eps = Const(0.01)
+    val objvect_uns = obj.get_ATy(vector1(Const(1)),sz)
+    val objvect = vector_scale(objvect_uns, Const(1.0)/Math.sqrt(vector_dot(objvect_uns, objvect_uns)))
     val ovscale = var_new[Double](Const(10.0))
     val xx = var_new[CVXVector](vector_zeros(sz))
     val bfeas = var_new[Boolean](Const(false))
-    __whileDo(!bfeas, {
-      println(Const("iterating: "))
+    __whileDo((!bfeas)||(readVar(ovscale) >= eps), {
+      //println(Const("iterating: "))
       var_assign(bfeas, Const(true))
-      var xxi: Exp[CVXVector] = vector_sum(readVar(xx),vector_scale(objvect,readVar(ovscale)*Const(-1.0)))
+      var xxi: Exp[CVXVector] = readVar(xx)
       for(c <- cs) {
-        val cvalid = c.valid(xxi,Const(0.01))
+        val cvalid = c.valid(xxi,eps)
         var_assign(bfeas, readVar(bfeas) && cvalid)
         xxi = c.project(xxi)
-        println(Const("  (") + string_valueof(cvalid) + Const(") ") + vector_to_string_matlab(xxi)) 
-        if(!c.valid(xxi,Const(0.01))) {
+        //println(Const("  (") + string_valueof(cvalid) + Const(") ") + vector_to_string_matlab(xxi)) 
+        if(!c.valid(xxi,eps)) {
           println(Const("Warning: Constraint projection did not result in valid constraint."))
         }
       }
-      var_assign(xx, xxi)
-      var_assign(ovscale, readVar(ovscale)*Const(0.95))
+      if(bfeas) {
+        //println(Const("Performing objective step..."))
+        var_assign(xx, vector_sum(xxi, vector_scale(objvect, ovscale*Const(-1.0))))
+        var_assign(ovscale, readVar(ovscale) * Const(0.95))
+      }
+      else {
+        var_assign(xx, xxi)
+      }
     })
     println(Const("converged!"))
     xx

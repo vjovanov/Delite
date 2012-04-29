@@ -31,6 +31,7 @@ trait ConstraintOpsExp extends ConstraintOps
     def vars(): Set[OptVarTr]
     def valid(x: Exp[CVXVector], eps: Exp[Double]): Exp[Boolean]
     def project(x: Exp[CVXVector]): Exp[CVXVector]
+    def overproject(x: Exp[CVXVector], a: Exp[Double]): Exp[CVXVector]
   }
   case class ConstrainZero(x: ExprTr) extends Constraint {
     def vars() = x.vars()
@@ -47,6 +48,10 @@ trait ConstraintOpsExp extends ConstraintOps
       val at = x.get_ATy(vector1(Const(1.0)),sz)
       val a2 = vector_dot(at,at)
       vector_sum(v,vector_scale(x.get_ATy(vector1(ax),sz),Const(-1.0)*a2))
+    }
+
+    def overproject(x: Exp[CVXVector], a: Exp[Double]): Exp[CVXVector] = {
+      project(x)
     }
   }
   case class ConstrainNonnegative(x: ExprTr) extends Constraint {
@@ -70,6 +75,10 @@ trait ConstraintOpsExp extends ConstraintOps
         v
       }
     }
+
+    def overproject(x: Exp[CVXVector], a: Exp[Double]): Exp[CVXVector] = {
+      vector_sum(x,vector_scale(vector_sum(project(x),vector_neg(x)),a+Const(1.0)))
+    }
   }
   case class ConstrainSecondOrderCone(x: ExprTr, z: ExprTr) extends Constraint {
     def vars() = x.vars() ++ z.vars()
@@ -82,6 +91,10 @@ trait ConstraintOpsExp extends ConstraintOps
     override def project(v: Exp[CVXVector]): Exp[CVXVector] = {
       throw new Exception("Not implemented.")
     }
+
+    def overproject(x: Exp[CVXVector], a: Exp[Double]): Exp[CVXVector] = {
+      vector_sum(x,vector_scale(vector_sum(project(x),vector_neg(x)),a+Const(1.0)))
+    }
   }
   case class ConstrainSemidefinite(x: ExprTr) extends Constraint {
     def vars() = x.vars()
@@ -93,6 +106,10 @@ trait ConstraintOpsExp extends ConstraintOps
 
     override def project(v: Exp[CVXVector]): Exp[CVXVector] = {
       throw new Exception("Not implemented.")
+    }
+
+    def overproject(x: Exp[CVXVector], a: Exp[Double]): Exp[CVXVector] = {
+      vector_sum(x,vector_scale(vector_sum(project(x),vector_neg(x)),a+Const(1.0)))
     }
   }
 
