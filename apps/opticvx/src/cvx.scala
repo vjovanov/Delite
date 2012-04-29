@@ -38,11 +38,10 @@ cvx_end
 
   def main() = {
     //println("Cheese!")
-    val u = variable()
     val x = variable()
     val y = variable()
-    val a = variable()
-    val b = variable()
+    //val a = variable()
+    //val b = variable()
     //println("Vartle")
     //val z = variable(smatrix(3))
     //for(i <- 0 until 10) {
@@ -56,16 +55,24 @@ cvx_end
     //}
     //max(x,y) <= -max(x,inv(u))
     //constrain_semidefinite(z)
-    x + y <= inputscalar(3.0)
-    x - u >= inputscalar(-2.0)
-    y + u <= inputscalar(6.0)
-    min(x,min(y,-inv(u))) >= inputscalar(-6.0)
-    max(inv(x),max(y,u)) <= inputscalar(2.0)
-    minimize (max(x,u)) over (u,x,y)
+    //x + y <= inputscalar(3.0)
+    //x - u >= inputscalar(-2.0)
+    //y + u <= inputscalar(6.0)
+    //min(x,min(y,u)) >= inputscalar(-6.0)
+    //max(x,max(y,u)) <= inputscalar(2.0)
+    //minimize (max(x,u)) over (u,x,y)
 
-    a <= inputscalar(1.0)
-    b <= inputscalar(1.0)
-    minimize (a + b) over (a,b)
+    max(x,y) <= inputscalar(2.0)
+    min(x,y) >= inputscalar(0.0)
+
+    minimize (x-y) over (x,y)
+
+    println("x = " + resolve(x))
+    println("y = " + resolve(y))
+
+    //a <= inputscalar(1.0)
+    //b <= inputscalar(1.0)
+    //minimize (a + b) over (a,b)
     //u <= zero(scalar())
     //constrain_nonnegative(u)
     //println(resolve(u))

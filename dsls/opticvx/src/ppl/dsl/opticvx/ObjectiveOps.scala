@@ -96,11 +96,11 @@ trait ObjectiveOpsExp extends ObjectiveOps
     //invoke the solver
     //val solution = fresh[CVXVector]
     //createDefinition(solution, solve(cx, constraints, problem_size))
-    solve(cx, constraints, problem_size)
+    val solution = solve(cx, constraints, problem_size)
     //distribute the solution
     for(v <- convars) {
       if(v.solved == false) {
-        v.value = null //vector_sum(v.get_Ax(solution),v.get_b())
+        v.value = vector_sum(v.get_Ax(solution),v.get_b())
         v.lookup_offset = null
         v.solved = true
       }

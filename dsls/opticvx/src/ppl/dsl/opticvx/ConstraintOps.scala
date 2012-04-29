@@ -1,7 +1,7 @@
 package ppl.dsl.opticvx
 
 import scala.virtualization.lms.common.ScalaOpsPkg
-import scala.virtualization.lms.common.{NumericOpsExp, OrderingOpsExp, BooleanOpsExp, IfThenElseExp}
+import scala.virtualization.lms.common.{NumericOpsExp, OrderingOpsExp, MathOpsExp, BooleanOpsExp, IfThenElseExp}
 import scala.virtualization.lms.common.{EffectExp, BaseExp, Base}
 import scala.virtualization.lms.common.ScalaGenBase
 import ppl.delite.framework.ops.{DeliteOpsExp}
@@ -25,26 +25,75 @@ trait ConstraintOps extends Base {
 
 trait ConstraintOpsExp extends ConstraintOps
   with NumericOpsExp with OrderingOpsExp with BooleanOpsExp with EffectExp {
-  self: ExprOpsExp with ExprShapeOpsExp with OptVarOpsExp =>
+  self: ExprOpsExp with ExprShapeOpsExp with OptVarOpsExp with IfThenElseExp with MathOpsExp with VectorOpsExp =>
 
   abstract class Constraint {
     def vars(): Set[OptVarTr]
+    def valid(x: Exp[CVXVector], eps: Exp[Double]): Exp[Boolean]
+    def project(x: Exp[CVXVector]): Exp[CVXVector]
   }
   case class ConstrainZero(x: ExprTr) extends Constraint {
     def vars() = x.vars()
     override def toString() = "0 == " + (x).toString()
+
+    override def valid(v: Exp[CVXVector], eps: Exp[Double]): Exp[Boolean] = {
+      val ax = vector_at(vector_sum(x.get_Ax(v),x.get_b()),Const(0))
+      Math.abs(ax) <= eps
+    }
+
+    override def project(v: Exp[CVXVector]): Exp[CVXVector] = {
+      val sz = vector_len(v)
+      val ax = vector_at(vector_sum(x.get_Ax(v),x.get_b()),Const(0))
+      val at = x.get_ATy(vector1(Const(1.0)),sz)
+      val a2 = vector_dot(at,at)
+      vector_sum(v,vector_scale(x.get_ATy(vector1(ax),sz),Const(-1.0)*a2))
+    }
   }
   case class ConstrainNonnegative(x: ExprTr) extends Constraint {
     def vars() = x.vars()
     override def toString() = "0 <= " + (x).toString()
+    
+    override def valid(v: Exp[CVXVector], eps: Exp[Double]): Exp[Boolean] = {
+      val ax = vector_at(vector_sum(x.get_Ax(v),x.get_b()),Const(0))
+      ax >= Const(-1.0)*eps
+    }
+
+    override def project(v: Exp[CVXVector]): Exp[CVXVector] = {
+      val sz = vector_len(v)
+      val ax = vector_at(vector_sum(x.get_Ax(v),x.get_b()),Const(0))
+      if(ax <= Const(0.0)) {
+        val at = x.get_ATy(vector1(Const(1.0)),sz)
+        val a2 = vector_dot(at,at)
+        vector_sum(v,vector_neg(vector_scale(x.get_ATy(vector1(ax),sz),a2)))
+      }
+      else {
+        v
+      }
+    }
   }
   case class ConstrainSecondOrderCone(x: ExprTr, z: ExprTr) extends Constraint {
     def vars() = x.vars() ++ z.vars()
     override def toString() = "norm(" + (x).toString() + ") <= " + (z).toString()
+  
+    override def valid(v: Exp[CVXVector], eps: Exp[Double]): Exp[Boolean] = {
+      throw new Exception("Not implemented.")
+    }
+
+    override def project(v: Exp[CVXVector]): Exp[CVXVector] = {
+      throw new Exception("Not implemented.")
+    }
   }
   case class ConstrainSemidefinite(x: ExprTr) extends Constraint {
     def vars() = x.vars()
     override def toString() = "semidefinite(" + (x).toString() + ")"
+
+    override def valid(v: Exp[CVXVector], eps: Exp[Double]): Exp[Boolean] = {
+      throw new Exception("Not implemented.")
+    }
+
+    override def project(v: Exp[CVXVector]): Exp[CVXVector] = {
+      throw new Exception("Not implemented.")
+    }
   }
 
   def infix_>=(x: Exp[Expr], y: Exp[Expr]): Exp[Unit]

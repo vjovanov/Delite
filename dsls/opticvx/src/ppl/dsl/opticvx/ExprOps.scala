@@ -50,6 +50,8 @@ trait ExprOpsExp extends ExprOps
 
     def vars(): Set[OptVarTr]
 
+    def resolve(): Exp[CVXVector]
+
     def size: Exp[Int] = canonicalize(shape()).size
   }
 
@@ -91,6 +93,10 @@ trait ExprOpsExp extends ExprOps
       vector_sum(ab,bb)
     }
 
+    def resolve(): Exp[CVXVector] = {
+      vector_sum(canonicalize(a).resolve(), canonicalize(b).resolve())
+    }
+
     def vexity(): Signum
       = canonicalize(a).vexity() + canonicalize(b).vexity()
 
@@ -121,6 +127,10 @@ trait ExprOpsExp extends ExprOps
       vector_neg(ab)
     }
 
+    def resolve(): Exp[CVXVector] = {
+      vector_neg(canonicalize(a).resolve())
+    }
+
     def vexity(): Signum
       = -(canonicalize(a).vexity())
 
@@ -149,6 +159,10 @@ trait ExprOpsExp extends ExprOps
     }
     def get_b(): Exp[CVXVector] = {
       vector_select(canonicalize(a).get_b(), i, Const(1))
+    }
+
+    def resolve(): Exp[CVXVector] = {
+      vector_select(canonicalize(a).resolve(), i, Const(1))
     }
     
     def vexity(): Signum = {
@@ -183,7 +197,7 @@ trait ExprOpsExp extends ExprOps
       case sh: ExprShapeScalarExp => 
       case _ => throw new Exception("Could not resolve non-scalar expression as double.")
     }
-    Const(0.0)
+    vector_at(canonicalize(x).resolve(),Const(0))
   }
 
 }

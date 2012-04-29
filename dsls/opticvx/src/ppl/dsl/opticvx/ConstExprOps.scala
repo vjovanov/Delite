@@ -34,6 +34,10 @@ trait ConstExprOpsExp extends ConstExprOps
     def vexity(): Signum = Vexity.affine
     def shape(): Exp[ExprShape] = scalar()
 
+    def resolve(): Exp[CVXVector] = {
+      vector1(u)
+    }
+
     def vars(): Set[OptVarTr] = Set[OptVarTr]()
 
     override def toString(): String = "input(" + u.toString + ")"

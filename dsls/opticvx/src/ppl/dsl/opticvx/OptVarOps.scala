@@ -69,6 +69,13 @@ trait OptVarOpsExp extends OptVarOps
     def vexity(): Signum
       = Vexity.affine
 
+    def resolve(): Exp[CVXVector] = {
+      if(!solved) {
+        throw new Exception("Tried to resolve non-solved variable.")
+      }
+      value
+    }
+
     def vars(): Set[OptVarTr] = Set[OptVarTr](this)
 
     override def toString(): String = {

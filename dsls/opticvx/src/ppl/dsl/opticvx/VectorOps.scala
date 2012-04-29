@@ -29,6 +29,16 @@ trait VectorOpsExp extends VectorOps
   def vector_neg(x: Exp[CVXVector]): Exp[CVXVector]
     = VectorNegExp(x)
 
+  //scale of a vector
+  case class VectorScaleExp(x: Exp[CVXVector], s: Exp[Double]) extends Def[CVXVector]
+  def vector_scale(x: Exp[CVXVector], s: Exp[Double]): Exp[CVXVector]
+    = VectorScaleExp(x,s)
+    
+  //dot product of two vectors
+  case class VectorDotExp(x: Exp[CVXVector], y: Exp[CVXVector]) extends Def[Double]
+  def vector_dot(x: Exp[CVXVector], y: Exp[CVXVector]): Exp[Double]
+    = VectorDotExp(x,y)
+    
   //select a subrange of values from a vector
   case class VectorSelectExp(x: Exp[CVXVector], offset: Exp[Int], len: Exp[Int]) extends Def[CVXVector]
   def vector_select(x: Exp[CVXVector], offset: Exp[Int], len: Exp[Int]): Exp[CVXVector]
@@ -84,11 +94,26 @@ trait ScalaGenVectorOps extends ScalaGenBase {
         stream.println("for(i <- 0 until " + quote(sym) + ".length) {")
         stream.println(quote(sym) + "(i) = " + quote(x) + "(i) + " + quote(y) + "(i)")
         stream.println("}")
+        
+      case VectorDotExp(x,y) =>
+        stream.println("if(" + quote(x) + ".length != " + quote(y) + ".length)")
+        stream.println("throw new Exception(\"OptiCVX Runtime Error: Vector length mismatch on dot product (\" + " + quote(x) + ".length + \" vs \" + " + quote(y) + ".length + \").\")")
+        stream.println("var acc: Double = 0.0")
+        stream.println("for(i <- 0 until " + quote(x) + ".length) {")
+        stream.println("acc += " + quote(x) + "(i) * " + quote(y) + "(i)")
+        stream.println("}")
+        stream.println("val " + quote(sym) + " = acc")
 
       case VectorNegExp(x) =>
         stream.println("val " + quote(sym) + " = new Array[Double](" + quote(x) + ".length)")
         stream.println("for(i <- 0 until " + quote(sym) + ".length) {")
         stream.println(quote(sym) + "(i) = -" + quote(x) + "(i)")
+        stream.println("}")
+        
+      case VectorScaleExp(x,s) =>
+        stream.println("val " + quote(sym) + " = new Array[Double](" + quote(x) + ".length)")
+        stream.println("for(i <- 0 until " + quote(sym) + ".length) {")
+        stream.println(quote(sym) + "(i) = " + quote(x) + "(i) * (" + quote(s) + ")")
         stream.println("}")
         
       case VectorSelectExp(x, offset, len) =>

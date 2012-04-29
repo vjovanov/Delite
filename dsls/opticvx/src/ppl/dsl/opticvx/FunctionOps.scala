@@ -85,6 +85,8 @@ trait FunctionOpsExp extends FunctionOps
     
     def vars(): Set[OptVarTr] = canonicalize(rv).vars()
 
+    def resolve(): Exp[CVXVector] = canonicalize(rv).resolve()
+
     override def toString(): String = canonicalize(rv).toString()
   }
 
