@@ -98,6 +98,7 @@ trait OptiCVX extends OptiCVXScalaOpsPkg
   with ConstExprOps
   with SolverOps
   with MatlabCVXOps
+  with AbstractMatrixOps
   //with OptVarOps with ExprOps with ConstraintOps
   //with ObjectiveOps with FunctionOps
   //awith ConstExprOps
@@ -130,6 +131,7 @@ trait OptiCVXExp extends OptiCVXCompiler with OptiCVXScalaOpsPkgExp
   with ConstExprOpsExp
   with SolverOpsExp
   with MatlabCVXOpsExp
+  with AbstractMatrixOpsExp
   //with OptVarOpsExp with ExprOpsExp with ConstraintOpsExp
   //with ObjectiveOpsExp with FunctionOpsExp
   //with ConstExprOpsExp
@@ -220,6 +222,7 @@ trait OptiCVXCodeGenScala extends OptiCVXCodeGenBase
   with ScalaGenConstExprOps
   with ScalaGenSolverOps
   with ScalaGenMatlabCVXOps
+  with ScalaGenAbstractMatrixOps
   //with ScalaGenOptVarOps with ScalaGenExprOps with ScalaGenConstraintOps
   //with ScalaGenObjectiveOps with ScalaGenFunctionOps
   //with ScalaGenConstExprOps

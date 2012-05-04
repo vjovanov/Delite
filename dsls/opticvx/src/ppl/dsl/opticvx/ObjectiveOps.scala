@@ -22,7 +22,7 @@ trait ObjectiveOps extends Base {
 trait ObjectiveOpsExp extends ObjectiveOps
   with NumericOpsExp with OrderingOpsExp with BooleanOpsExp with EffectExp {
   self: ExprOpsExp with ExprShapeOpsExp with ConstraintOpsExp with MatlabCVXOpsExp
-    with OptVarOpsExp with SolverOpsExp with VectorOpsExp =>
+    with OptVarOpsExp with SolverOpsExp with VectorOpsExp with AbstractMatrixOpsExp =>
 
   def minimize_over(x: Exp[Expr], vs: Seq[Exp[OptVar]]): Exp[Unit] = {
     val cx = canonicalize(x)

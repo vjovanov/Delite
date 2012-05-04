@@ -19,14 +19,7 @@ trait SolverOpsExp extends SolverOps
   with NumericOpsExp with OrderingOpsExp with BooleanOpsExp with EffectExp {
   self: ExprOpsExp with OptVarOpsExp with ExprShapeOpsExp with StringOpsExp with WhileExp
     with MiscOpsExp with ConstraintOpsExp with VectorOpsExp with IfThenElseExp 
-    with VariablesExp with MathOpsExp =>
-  
-  trait AbstractMatrix {
-    def m(): Exp[Int]
-    def n(): Exp[Int]
-    def get_Ax(x: Exp[CVXVector]): Exp[CVXVector]
-    def get_ATy(y: Exp[CVXVector]): Exp[CVXVector]
-  }
+    with VariablesExp with MathOpsExp with AbstractMatrixOpsExp =>
   
   case class SymmetricCone(
     //size of unconstrained variables
