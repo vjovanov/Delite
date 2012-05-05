@@ -2,7 +2,7 @@ package ppl.dsl.opticvx
 
 import scala.virtualization.lms.common.ScalaOpsPkg
 import scala.virtualization.lms.common.{NumericOpsExp, OrderingOpsExp, MathOpsExp, WhileExp, StringOpsExp, BooleanOpsExp, MiscOpsExp, IfThenElseExp}
-import scala.virtualization.lms.common.{EffectExp, BaseExp, VariablesExp, Base}
+import scala.virtualization.lms.common.{EffectExp, BaseExp, VariablesExp, PrimitiveOps, Base}
 import scala.virtualization.lms.common.ScalaGenBase
 import ppl.delite.framework.ops.{DeliteOpsExp}
 
@@ -19,7 +19,7 @@ trait SolverOpsExp extends SolverOps
   with NumericOpsExp with OrderingOpsExp with BooleanOpsExp with EffectExp {
   self: ExprOpsExp with OptVarOpsExp with ExprShapeOpsExp with StringOpsExp with WhileExp
     with MiscOpsExp with ConstraintOpsExp with VectorOpsExp with IfThenElseExp 
-    with VariablesExp with MathOpsExp with AbstractMatrixOpsExp =>
+    with VariablesExp with MathOpsExp with AbstractMatrixOpsExp with PrimitiveOps =>
   
   case class SymmetricCone(
     //size of unconstrained variables
@@ -36,12 +36,71 @@ trait SolverOpsExp extends SolverOps
   
   //minimize c'*x subject to A*x + b = 0 and x \in K
   def solve(A: AbstractMatrix, b: Exp[CVXVector], c: Exp[CVXVector], K: SymmetricCone): Exp[CVXVector] = {
+    println(Const("Matrix A is ") + string_valueof(A.m()) + Const(" by ") + string_valueof(A.n()))
     new Problem(A,b,c,K).solve()
   }
   
   class Problem(A: AbstractMatrix, b: Exp[CVXVector], c: Exp[CVXVector], K: SymmetricCone) {
+    
+    var Ainv_b: Exp[CVXVector] = null
+    var PA: AbstractMatrix = null
+    var c_hat: Exp[CVXVector] = null
+    
+    
     def solve(): Exp[CVXVector] = {
-      vector_zeros(A.n())
+      println(Const("Setting up solver..."))
+      setup()
+      val x = var_new[CVXVector](vector_zeros(A.n()))
+      val niters = var_new[Int](Const(0))
+      println(Const("Solving..."))
+      __whileDo(niters <= Const(100), {
+        //print(Const("Iteration ") + string_valueof(readVar(niters)) + ": " + vector_to_string_matlab(readVar(x)))
+        var_assign(x, vector_sum(readVar(x),vector_scale(c_hat,Const(-1.0)*step_size(niters))))
+        //print(Const(" -> ") + vector_to_string_matlab(readVar(x)))
+        var_assign(x, project_onto_K(readVar(x)))
+        //println(Const(" -> ") + vector_to_string_matlab(readVar(x)))
+        var_assign(x, project_onto_Axb(readVar(x)))
+        var_assign(niters, readVar(niters)+Const(1))
+      })
+      x
+    }
+    
+    def setup() {
+      //compute A^-1*b
+      //println(Const("         b = ") + vector_to_string_matlab(b))
+      val Ainv = amatrix_inv_lsqr(A,Const(1e-20),Const(20))
+      Ainv_b = Ainv.get_Ax(b)
+      //println(Const("    Ainv*b = ") + vector_to_string_matlab(Ainv_b))
+      //println(Const("A*(Ainv*b) = ") + vector_to_string_matlab(A.get_Ax(Ainv_b)))
+      //setup the projection matrix
+      val AATinv = amatrix_inv_lsqr(amatrix_prod(A,amatrix_transp(A)),Const(1e-20),Const(10))
+      PA = amatrix_prod(amatrix_prod(amatrix_transp(A),AATinv),A)
+      //normalize the objective
+      c_hat = vector_scale(c, Const(1.0)/math_sqrt(vector_dot(c,c)))
+    }
+    
+    def step_size(iter: Exp[Int]): Exp[Double] = {
+      Const(0.01)/repIntToRepDouble(iter+Const(1))
+    }
+    
+    def project_onto_Axb(x: Exp[CVXVector]): Exp[CVXVector] = {
+      //xm = x - Ainv*b
+      //println(Const("Projection call size: ") + string_valueof(vector_len(x)))
+      //println(Const("Matrix PA is ") + string_valueof(PA.m()) + Const(" by ") + string_valueof(PA.n()))
+      val xm = vector_sum(x,vector_scale(Ainv_b,Const(-1.0)))
+      //
+      val xmp = vector_sum(xm,vector_scale(PA.get_Ax(xm),Const(-1.0)))
+      //
+      val xrv = vector_sum(xmp,Ainv_b)
+      //println(Const("Projection return size: ") + string_valueof(vector_len(xrv)))
+      //return the computed value
+      println(Const("in = ") + vector_to_string_matlab(x))
+      println(Const(" b = ") + vector_to_string_matlab(b))
+      println(Const("rv = ") + vector_to_string_matlab(xrv))
+      println(Const("Am = ") + vector_to_string_matlab(A.get_Ax(xmp)))
+      println(Const("Ar = ") + vector_to_string_matlab(A.get_Ax(xrv)))
+      println(Const(""))
+      return xrv
     }
     
     def project_onto_K(x: Exp[CVXVector]): Exp[CVXVector] = {

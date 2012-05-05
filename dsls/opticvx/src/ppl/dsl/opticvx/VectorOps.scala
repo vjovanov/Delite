@@ -103,11 +103,11 @@ trait ScalaGenVectorOps extends ScalaGenBase {
       case VectorDotExp(x,y) =>
         stream.println("if(" + quote(x) + ".length != " + quote(y) + ".length)")
         stream.println("throw new Exception(\"OptiCVX Runtime Error: Vector length mismatch on dot product (\" + " + quote(x) + ".length + \" vs \" + " + quote(y) + ".length + \").\")")
-        stream.println("var acc: Double = 0.0")
+        stream.println("var acc" + quote(sym) + ": Double = 0.0")
         stream.println("for(i <- 0 until " + quote(x) + ".length) {")
-        stream.println("acc += " + quote(x) + "(i) * " + quote(y) + "(i)")
+        stream.println("acc" + quote(sym) + " += " + quote(x) + "(i) * " + quote(y) + "(i)")
         stream.println("}")
-        stream.println("val " + quote(sym) + " = acc")
+        stream.println("val " + quote(sym) + " = acc" + quote(sym))
 
       case VectorNegExp(x) =>
         stream.println("val " + quote(sym) + " = new Array[Double](" + quote(x) + ".length)")

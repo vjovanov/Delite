@@ -95,7 +95,11 @@ trait MatlabCVXOpsExp extends MatlabCVXOps
     make_line(vrv,Const("fprintf(\'$$$OUTPUT END$$$\\\\n\');"))
     readVar(vrv)
   }
-  
+
+  def matlab_print_problem(obj: ExprTr, cs: Set[Constraint], sz: Exp[Int]): Exp[Unit] = {
+    print(matlab_make_problem(obj,cs,sz))
+  }  
+
   def terribleSolver(obj: ExprTr, cs: Set[Constraint], sz: Exp[Int]): Exp[CVXVector] = {
     val eps = Const(0.01)
     val objvect_uns = obj.get_ATy(vector1(Const(1)),sz)

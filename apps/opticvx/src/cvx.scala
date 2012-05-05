@@ -39,7 +39,7 @@ cvx_end
   def main() = {
     //println("Cheese!")
     val x = variable()
-    val y = variable()
+    //val y = variable()
     //val a = variable()
     //val b = variable()
     //println("Vartle")
@@ -62,13 +62,17 @@ cvx_end
     //max(x,max(y,u)) <= inputscalar(2.0)
     //minimize (max(x,u)) over (u,x,y)
 
-    max(x,y) <= inputscalar(2.0)
-    min(x,y) >= inputscalar(0.0)
+    //max(x,y) <= inputscalar(2.0)
+    //min(x,y) >= inputscalar(0.0)
 
-    minimize (x-y) over (x,y)
+    //minimize (x-y) over (x,y)
+
+    x >= inputscalar(1.0)
+    //y >= inputscalar(1.0)
+    minimize (x) over (x)
 
     println("x = " + resolve(x))
-    println("y = " + resolve(y))
+    //println("y = " + resolve(y))
 
     //a <= inputscalar(1.0)
     //b <= inputscalar(1.0)
