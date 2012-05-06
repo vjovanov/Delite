@@ -40,6 +40,7 @@ cvx_end
     //println("Cheese!")
     val x = variable()
     val y = variable()
+    val z = variable()
     //val a = variable()
     //val b = variable()
     //println("Vartle")

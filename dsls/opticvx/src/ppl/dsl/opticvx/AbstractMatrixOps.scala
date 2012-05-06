@@ -99,7 +99,6 @@ trait AbstractMatrixOpsExp extends AbstractMatrixOps
     val iterct = var_new[Int](Const(0))
     //iterate
     __whileDo((iterct < itermax), {
-      //println(Const("           x = ") + vector_to_string_matlab(readVar(x)))
       //bidiagonization step
       val Avau = vector_sum(A.get_Ax(readVar(v)),vector_scale(readVar(u),Const(-1.0)*readVar(alpha)))
       val beta_next = math_sqrt(vector_dot(Avau,Avau))
@@ -109,8 +108,8 @@ trait AbstractMatrixOpsExp extends AbstractMatrixOps
       val v_next = vector_scale(ATubv,Const(1.0)/(alpha_next+eps))
       //orthogonal transformation step
       val rho_nobar = math_sqrt(readVar(rho)*readVar(rho)+beta_next*beta_next)
-      val c = rho_nobar/(readVar(rho)+eps)
-      val s = beta_next/(readVar(rho)+eps)
+      val c = readVar(rho)/(rho_nobar+eps)
+      val s = beta_next/(rho_nobar+eps)
       val theta = s*alpha_next
       val rho_next = Const(-1.0)*c*alpha_next
       val phi_nobar = c*readVar(phi)
@@ -128,6 +127,7 @@ trait AbstractMatrixOpsExp extends AbstractMatrixOps
       var_assign(rho, rho_next)
       var_assign(iterct, readVar(iterct) + Const(1))
       var_assign(x, x_next)
+      //println(Const("beta = ") + string_valueof(beta_next))
     })
     //println(Const(""))
     //return the value converged to
