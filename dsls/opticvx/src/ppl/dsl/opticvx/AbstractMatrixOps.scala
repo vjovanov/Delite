@@ -58,6 +58,10 @@ trait AbstractMatrixOpsExp extends AbstractMatrixOps
     def get_Ax(x: Exp[CVXVector]): Exp[CVXVector] = {
       val rv = lsqr(A,x,readVar(x0),eps,maxiter)
       var_assign(x0, rv)
+      //println(Const("         x = ") + vector_to_string_matlab(x))
+      //println(Const("    Ainv*x = ") + vector_to_string_matlab(rv))
+      //println(Const("A*(Ainv*x) = ") + vector_to_string_matlab(A.get_Ax(rv)))
+      //println(Const(""))
       rv
     }
     def get_ATy(y: Exp[CVXVector]): Exp[CVXVector] = {
@@ -72,6 +76,7 @@ trait AbstractMatrixOpsExp extends AbstractMatrixOps
   //solves the equation Ax=b for x using the LSQR method and returns x
   //TODO: Add stopping criteria based on the eps error parameter
   def lsqr(A: AbstractMatrix, b: Exp[CVXVector], x0: Exp[CVXVector], eps: Exp[Double], itermax: Exp[Int]): Exp[CVXVector] = {
+    eps = Const(1e-40)
     //initialization code
     val beta_init = math_sqrt(vector_dot(b,b))
     val u_init = vector_scale(b,Const(1.0)/(beta_init+eps))
@@ -79,7 +84,7 @@ trait AbstractMatrixOpsExp extends AbstractMatrixOps
     val alpha_init = math_sqrt(vector_dot(ATu_init,ATu_init))
     val v_init = vector_scale(ATu_init,Const(1.0)/(alpha_init+eps))
     val w_init = v_init
-    val x_init = x0
+    val x_init = vector_zeros(vector_len(x0))//x0
     val phi_init = beta_init
     val rho_init = alpha_init
     //define the variables
@@ -94,6 +99,7 @@ trait AbstractMatrixOpsExp extends AbstractMatrixOps
     val iterct = var_new[Int](Const(0))
     //iterate
     __whileDo((iterct < itermax), {
+      //println(Const("           x = ") + vector_to_string_matlab(readVar(x)))
       //bidiagonization step
       val Avau = vector_sum(A.get_Ax(readVar(v)),vector_scale(readVar(u),Const(-1.0)*readVar(alpha)))
       val beta_next = math_sqrt(vector_dot(Avau,Avau))
@@ -123,6 +129,7 @@ trait AbstractMatrixOpsExp extends AbstractMatrixOps
       var_assign(iterct, readVar(iterct) + Const(1))
       var_assign(x, x_next)
     })
+    //println(Const(""))
     //return the value converged to
     return readVar(x)
   }

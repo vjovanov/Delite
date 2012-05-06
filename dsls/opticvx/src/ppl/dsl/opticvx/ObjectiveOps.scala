@@ -176,6 +176,7 @@ trait ObjectiveOpsExp extends ObjectiveOps
     for(x <- zero_exps) {
       stdB = vector_cat(stdB, x.get_b())
     }
+    stdB = vector_neg(stdB)
     val stdC = cx.get_ATy(vector1(Const(1.0)), problem_size)
     val stdK = SymmetricCone(unconstrained_sz, psimplex_sz, soc_ns, definite_ns)
     //invoke the solver

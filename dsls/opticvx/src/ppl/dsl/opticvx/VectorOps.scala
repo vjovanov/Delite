@@ -118,7 +118,7 @@ trait ScalaGenVectorOps extends ScalaGenBase {
       case VectorPositivePartExp(x) =>
         stream.println("val " + quote(sym) + " = new Array[Double](" + quote(x) + ".length)")
         stream.println("for(i <- 0 until " + quote(sym) + ".length) {")
-        stream.println(quote(sym) + "(i) = Math.max(0," + quote(x) + "(i))")
+        stream.println(quote(sym) + "(i) = Math.max(0.0," + quote(x) + "(i))")
         stream.println("}")
         
       case VectorScaleExp(x,s) =>
