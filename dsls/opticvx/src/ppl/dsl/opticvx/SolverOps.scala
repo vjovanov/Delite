@@ -1,8 +1,8 @@
 package ppl.dsl.opticvx
 
 import scala.virtualization.lms.common.ScalaOpsPkg
-import scala.virtualization.lms.common.{NumericOpsExp, OrderingOpsExp, WhileExp, StringOpsExp, BooleanOpsExp, MiscOpsExp, IfThenElseExp}
-import scala.virtualization.lms.common.{EffectExp, BaseExp, VariablesExp, Base}
+import scala.virtualization.lms.common.{NumericOpsExp, OrderingOpsExp, MathOpsExp, WhileExp, StringOpsExp, BooleanOpsExp, MiscOpsExp, IfThenElseExp}
+import scala.virtualization.lms.common.{EffectExp, BaseExp, VariablesExp, PrimitiveOps, Base}
 import scala.virtualization.lms.common.ScalaGenBase
 import ppl.delite.framework.ops.{DeliteOpsExp}
 
@@ -18,120 +18,134 @@ trait SolverOps extends Base {
 trait SolverOpsExp extends SolverOps
   with NumericOpsExp with OrderingOpsExp with BooleanOpsExp with EffectExp {
   self: ExprOpsExp with OptVarOpsExp with ExprShapeOpsExp with StringOpsExp with WhileExp
-    with MiscOpsExp with ConstraintOpsExp with VectorOpsExp with IfThenElseExp with VariablesExp =>
-
-  case class SolverExp(obj: ExprTr, cs: Set[Constraint], sz: Exp[Int]) extends Def[Unit]
-
-  def make_line(v: Var[String], s: Exp[String]): Exp[Unit] = {
-    var_assign(v, readVar(v) + s + Const("\\n"))
+    with MiscOpsExp with ConstraintOpsExp with VectorOpsExp with IfThenElseExp 
+    with VariablesExp with MathOpsExp with AbstractMatrixOpsExp with PrimitiveOps =>
+  
+  case class SymmetricCone(
+    //size of unconstrained variables
+    val unconstrained_sz: Exp[Int], 
+    //size of positive simplex variables
+    val psimplex_sz: Exp[Int],
+    //n values for second-order-cone constraints 
+    val soc_ns: Seq[Exp[Int]],
+    //n values for definitness constraints
+    val definite_ns: Seq[Exp[Int]]
+  ) {
+    
   }
   
-  def matlab_make_expression(vrv: Var[String], x: ExprTr, sz: Exp[Int]): Exp[Unit] = {
-    make_line(vrv, Const("AA = [];"))
-    val vari = var_new[Int](Const(0))
-    __whileDo(readVar(vari) < x.size, {
-      val tt = vector_cat(vector_cat(vector_zeros(readVar(vari)),vector1(Const(1))),vector_zeros(x.size-readVar(vari)-Const(1)))
-      val at = x.get_ATy(tt, sz)
-      make_line(vrv, Const("AA = vertcat(AA,") + vector_to_string_matlab(at) + Const(");"))
-      var_assign(vari, readVar(vari) + Const(1))
-    })
-    val bt = x.get_b()
-    make_line(vrv, Const("bb = ") + vector_to_string_matlab(bt) + Const(";"))
+  //minimize c'*x subject to A*x + b = 0 and x \in K
+  def solve(A: AbstractMatrix, b: Exp[CVXVector], c: Exp[CVXVector], K: SymmetricCone): Exp[CVXVector] = {
+    println(Const("Matrix A is ") + string_valueof(A.m()) + Const(" by ") + string_valueof(A.n()))
+    new Problem(A,b,c,K).solve()
   }
   
-  def matlab_make_problem(obj: ExprTr, cs: Set[Constraint], sz: Exp[Int]): Exp[String] = {
-    val vrv = var_new[String](Const(""))
-    val vrmmct = var_new[Int](Const(0))
-    make_line(vrv, Const("cvx_begin"))
-    make_line(vrv, Const("variable x(") + string_valueof(sz) + Const(")"))
-    for(c <- cs) {
-      make_line(vrv, Const("% " + c.toString()))
-      c match {
-        case ConstrainZero(x: ExprTr) =>
-          matlab_make_expression(vrv,x,sz)
-          make_line(vrv, Const("uu = AA*x + transpose(bb);")) 
-          make_line(vrv, Const("0 == uu;"))
-
-        case ConstrainNonnegative(x: ExprTr) =>
-          matlab_make_expression(vrv,x,sz)
-          make_line(vrv,Const("uu = AA*x + transpose(bb);")) 
-          make_line(vrv,Const("0 <= uu;"))
-          //val at = x.get_ATy(vector1(Const(1)), sz)
-          //val bt = x.get_b()
-          //println(Const("0 <= ") + vector_to_string_matlab(at) + Const("*x + ") + vector_to_string_matlab(bt))
-
-        case ConstrainSecondOrderCone(x: ExprTr, z: ExprTr) =>
-          matlab_make_expression(vrv,x,sz)
-          make_line(vrv,Const("uu = AA*x + transpose(bb);"))
-          matlab_make_expression(vrv,z,sz)
-          make_line(vrv,Const("zz = AA*x + transpose(bb);"))
-          make_line(vrv,Const("norm(uu) <= zz;"))
-
-        case ConstrainSemidefinite(x: ExprTr) =>
-          matlab_make_expression(vrv,x,sz)
-          make_line(vrv,Const("uu = AA*x + transpose(bb);"))
-          val msz = canonicalize(x.shape()).asInstanceOf[ExprShapeSMatrixExp]
-          make_line(vrv,Const("expression mm") + string_valueof(readVar(vrmmct)) + Const("(") + string_valueof(msz.n) + Const(");"))
-          make_line(vrv,Const("for ii = 0:") + string_valueof(msz.n-Const(1)))
-          make_line(vrv,Const("for jj = 0:") + string_valueof(msz.n-Const(1)))
-          make_line(vrv,Const("kk = max(ii,jj)*(max(ii,jj)+1)/2 + min(ii,jj);"))
-          make_line(vrv,Const("mm") + string_valueof(readVar(vrmmct)) + Const("(ii+1,jj+1) = uu(kk+1);"))
-          make_line(vrv,Const("end"))
-          make_line(vrv,Const("end"))
-          make_line(vrv,"mm" + string_valueof(readVar(vrmmct)) + " == semidefinite(" + msz.n + ");")
-          var_assign(vrmmct, readVar(vrmmct) + Const(1))
-
-        case _ =>
-          throw new Exception("Error: On solver emission, invalid constraint.")
-      }
+  class Problem(A: AbstractMatrix, b: Exp[CVXVector], c: Exp[CVXVector], K: SymmetricCone) {
+    
+    var Ainv_b: Exp[CVXVector] = null
+    var PA: AbstractMatrix = null
+    var c_hat: Exp[CVXVector] = null
+    
+    
+    def solve(): Exp[CVXVector] = {
+      println(Const("Setting up solver..."))
+      setup()
+      val x = var_new[CVXVector](vector_zeros(A.n()))
+      val niters = var_new[Int](Const(0))
+      println(Const("Solving..."))
+      __whileDo(niters <= Const(100), {
+        //print(Const("Iteration ") + string_valueof(readVar(niters)) + ": " + vector_to_string_matlab(readVar(x)))
+        var_assign(x, vector_sum(readVar(x),vector_scale(c_hat,Const(-1.0)*step_size(niters))))
+        //print(Const(" -> ") + vector_to_string_matlab(readVar(x)))
+        var_assign(x, project_onto_K(readVar(x)))
+        //println(Const(" -> ") + vector_to_string_matlab(readVar(x)))
+        var_assign(x, project_onto_Axb(readVar(x)))
+        var_assign(niters, readVar(niters)+Const(1))
+      })
+      x
     }
-    val atobj = obj.get_ATy(vector1(Const(1)), sz)
-    val btobj = obj.get_b()
-    make_line(vrv,Const("minimize ") + vector_to_string_matlab(atobj) + Const("*x + ") + vector_to_string_matlab(btobj))
-    make_line(vrv,Const("cvx_end"))
-    make_line(vrv,Const("fprintf(\'$$$OUTPUT BEGIN$$$\\\\n\');"))
-    make_line(vrv,Const("fprintf(\'%g\\\\n\',x);"))
-    make_line(vrv,Const("fprintf(\'$$$OUTPUT END$$$\\\\n\');"))
-    make_line(vrv,Const("fprintf(\'$$$OUTPUT END$$$\\\\n\');"))
-    readVar(vrv)
-  }
-  
-  //case class MatlabSolveExp(mpstr: Exp[String], sz: Exp[Int]) extends Def[CVXVector]
-  //takes a set of constraints, and the problem size
-  def solve(obj: ExprTr, cs: Set[Constraint], sz: Exp[Int]): Exp[CVXVector] = {
-    //val matlab_problem = matlab_make_problem(obj,cs,sz);
-    //reflectEffect(MatlabSolveExp(matlab_problem, sz))
-    print(matlab_make_problem(obj,cs,sz))
-    val eps = Const(0.01)
-    val objvect_uns = obj.get_ATy(vector1(Const(1)),sz)
-    val objvect = vector_scale(objvect_uns, Const(1.0)/Math.sqrt(vector_dot(objvect_uns, objvect_uns)))
-    val ovscale = var_new[Double](Const(10.0))
-    val xx = var_new[CVXVector](vector_zeros(sz))
-    val bfeas = var_new[Boolean](Const(false))
-    __whileDo((!bfeas)||(readVar(ovscale) >= eps), {
-      //println(Const("iterating: "))
-      var_assign(bfeas, Const(true))
-      var xxi: Exp[CVXVector] = readVar(xx)
-      for(c <- cs) {
-        val cvalid = c.valid(xxi,eps)
-        var_assign(bfeas, readVar(bfeas) && cvalid)
-        xxi = c.project(xxi)
-        //println(Const("  (") + string_valueof(cvalid) + Const(") ") + vector_to_string_matlab(xxi)) 
-        if(!c.valid(xxi,eps)) {
-          println(Const("Warning: Constraint projection did not result in valid constraint."))
+    
+    def setup() {
+      //compute A^-1*b
+      //println(Const("         b = ") + vector_to_string_matlab(b))
+      val Ainv = amatrix_inv_lsqr(A,Const(1e-20),Const(20))
+      Ainv_b = Ainv.get_Ax(b)
+      //println(Const("    Ainv*b = ") + vector_to_string_matlab(Ainv_b))
+      //println(Const("A*(Ainv*b) = ") + vector_to_string_matlab(A.get_Ax(Ainv_b)))
+      //setup the projection matrix
+      val AATinv = amatrix_inv_lsqr(amatrix_prod(A,amatrix_transp(A)),Const(1e-20),Const(10))
+      PA = amatrix_prod(amatrix_prod(amatrix_transp(A),AATinv),A)
+      //normalize the objective
+      c_hat = vector_scale(c, Const(1.0)/math_sqrt(vector_dot(c,c)))
+    }
+    
+    def step_size(iter: Exp[Int]): Exp[Double] = {
+      Const(0.01)/repIntToRepDouble(iter+Const(1))
+    }
+    
+    def project_onto_Axb(x: Exp[CVXVector]): Exp[CVXVector] = {
+      //xm = x - Ainv*b
+      //println(Const("Projection call size: ") + string_valueof(vector_len(x)))
+      //println(Const("Matrix PA is ") + string_valueof(PA.m()) + Const(" by ") + string_valueof(PA.n()))
+      val xm = vector_sum(x,vector_scale(Ainv_b,Const(-1.0)))
+      //
+      val xmp = vector_sum(xm,vector_scale(PA.get_Ax(xm),Const(-1.0)))
+      //
+      val xrv = vector_sum(xmp,Ainv_b)
+      //println(Const("Projection return size: ") + string_valueof(vector_len(xrv)))
+      //return the computed value
+      println(Const("in = ") + vector_to_string_matlab(x))
+      println(Const(" b = ") + vector_to_string_matlab(b))
+      println(Const("rv = ") + vector_to_string_matlab(xrv))
+      println(Const("Am = ") + vector_to_string_matlab(A.get_Ax(xmp)))
+      println(Const("Ar = ") + vector_to_string_matlab(A.get_Ax(xrv)))
+      println(Const(""))
+      return xrv
+    }
+    
+    def project_onto_K(x: Exp[CVXVector]): Exp[CVXVector] = {
+      var rv: Exp[CVXVector] = vector_zeros(Const(0))
+      var ind: Exp[Int] = Const(0)
+      //pass the constants through unmodified
+      rv = vector_cat(rv, vector_select(x, ind, K.unconstrained_sz))
+      ind = ind + K.unconstrained_sz
+      //make the positive simplex nodes positive
+      rv = vector_cat(rv, vector_positive_part(vector_select(x, ind, K.psimplex_sz)))
+      ind = ind + K.psimplex_sz
+      //project onto second-order cones
+      for(n <- K.soc_ns) {
+        val cx: Exp[CVXVector] = vector_select(x, ind, n)
+        ind = ind + n
+        val cz: Exp[Double] = vector_at(x, ind)
+        ind = ind + Const(1)
+        val norm2cx: Exp[Double] = vector_dot(cx,cx);
+        if((cz*cz) >= norm2cx) {
+          if(cz <= Const(0.0)) {
+            //projection is onto the zero point
+            rv = vector_cat(rv, vector_zeros(n + Const(1)))
+          }
+          else {
+            //projection retains the original value
+            rv = vector_cat(rv, cx)
+            rv = vector_cat(rv, vector1(cz))
+          }
+        }
+        else {
+          //use the projection formula on pg447 of Boyd and Vandenberghe
+          val normcx: Exp[Double] = math_sqrt(norm2cx)
+          val cscale: Exp[Double] = Const(0.5)*(Const(1.0) + cz/normcx)
+          rv = vector_cat(rv, vector_scale(cx, cscale))
+          rv = vector_cat(rv, vector1(normcx * cscale))
         }
       }
-      if(bfeas) {
-        //println(Const("Performing objective step..."))
-        var_assign(xx, vector_sum(xxi, vector_scale(objvect, ovscale*Const(-1.0))))
-        var_assign(ovscale, readVar(ovscale) * Const(0.95))
+      //project onto semidefinite cone
+      for(n <- K.definite_ns) {
+        //throw an error as this projection is not implemented
+        throw new Exception("Definitness constraints not implemented yet.")
       }
-      else {
-        var_assign(xx, xxi)
-      }
-    })
-    println(Const("converged!"))
-    xx
+      //return the accumulated vector
+      return rv
+    }
   }
 }
 
@@ -141,38 +155,6 @@ trait ScalaGenSolverOps extends ScalaGenBase {
 
   override def emitNode(sym: Sym[Any], rhs: Def[Any])(implicit stream: PrintWriter) = {
     rhs match {
-      /*
-      case MatlabSolveExp(mpstr, sz) =>
-        println("Emitting solver code...")
-        stream.println("val " + quote(sym) + " = new Array[Double](" + quote(sz) + ")")
-        stream.println("val rt = java.lang.Runtime.getRuntime()")
-        stream.println("val p = rt.exec(\"matlab\")")
-        stream.println("println(\"write: \" + " + quote(mpstr) + ")")
-        stream.println("p.getOutputStream().write(" + quote(mpstr) + ".getBytes())")
-        stream.println("p.getOutputStream().write(\"exit;\\n\".getBytes())")
-        stream.println("p.getOutputStream().close()")
-        stream.println("val ins = new java.io.BufferedReader(new java.io.InputStreamReader(p.getInputStream()))")
-        stream.println("var rlrst: String = \"\"")
-        stream.println("while((rlrst = ins.readLine()) != \"$$$OUTPUT BEGIN$$$\") {")
-        stream.println("if(rlrst == null) throw new Exception(\"MATLAB read returned null.\")")
-        stream.println("println(\"read: \" + rlrst)")
-        stream.println("}")
-        stream.println("for(ii <- 0 until " + quote(sz) + ") {")
-        stream.println(quote(sym) + "(ii) = ins.readLine().toDouble")
-        stream.println("}")
-        stream.println("if(ins.readLine() != \"$$$OUTPUT END$$$\") {")
-        stream.println("throw new Exception(\"Output length error in MATLAB interface.\")")
-        stream.println("}")
-        stream.println("p.waitFor()")
-      */
-      /*
-      case SolverExp(obj,cs,sz) =>
-        println("Emitting solver code...")
-        stream.println("println(\"cvx_begin\")")
-        stream.println("println(\"variable x(\" + " + quote(sz) + " + \")\")")
-        stream.println("println(\"cvx_end\")")
-      */
-
       case _ => 
         super.emitNode(sym, rhs)
     }

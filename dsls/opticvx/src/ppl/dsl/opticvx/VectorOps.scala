@@ -18,7 +18,7 @@ trait VectorOpsExp extends VectorOps
   self: ExprOpsExp with StringOpsExp with WhileExp with VariablesExp =>
   
   type CVXVector = Array[Double]
-
+  
   //sum of two vectors
   case class VectorSumExp(x: Exp[CVXVector], y: Exp[CVXVector]) extends Def[CVXVector]
   def vector_sum(x: Exp[CVXVector], y: Exp[CVXVector]): Exp[CVXVector]
@@ -29,6 +29,11 @@ trait VectorOpsExp extends VectorOps
   def vector_neg(x: Exp[CVXVector]): Exp[CVXVector]
     = VectorNegExp(x)
 
+  //negation of a vector
+  case class VectorPositivePartExp(x: Exp[CVXVector]) extends Def[CVXVector]
+  def vector_positive_part(x: Exp[CVXVector]): Exp[CVXVector]
+    = VectorPositivePartExp(x)
+    
   //scale of a vector
   case class VectorScaleExp(x: Exp[CVXVector], s: Exp[Double]) extends Def[CVXVector]
   def vector_scale(x: Exp[CVXVector], s: Exp[Double]): Exp[CVXVector]
@@ -98,16 +103,22 @@ trait ScalaGenVectorOps extends ScalaGenBase {
       case VectorDotExp(x,y) =>
         stream.println("if(" + quote(x) + ".length != " + quote(y) + ".length)")
         stream.println("throw new Exception(\"OptiCVX Runtime Error: Vector length mismatch on dot product (\" + " + quote(x) + ".length + \" vs \" + " + quote(y) + ".length + \").\")")
-        stream.println("var acc: Double = 0.0")
+        stream.println("var acc" + quote(sym) + ": Double = 0.0")
         stream.println("for(i <- 0 until " + quote(x) + ".length) {")
-        stream.println("acc += " + quote(x) + "(i) * " + quote(y) + "(i)")
+        stream.println("acc" + quote(sym) + " += " + quote(x) + "(i) * " + quote(y) + "(i)")
         stream.println("}")
-        stream.println("val " + quote(sym) + " = acc")
+        stream.println("val " + quote(sym) + " = acc" + quote(sym))
 
       case VectorNegExp(x) =>
         stream.println("val " + quote(sym) + " = new Array[Double](" + quote(x) + ".length)")
         stream.println("for(i <- 0 until " + quote(sym) + ".length) {")
         stream.println(quote(sym) + "(i) = -" + quote(x) + "(i)")
+        stream.println("}")
+        
+      case VectorPositivePartExp(x) =>
+        stream.println("val " + quote(sym) + " = new Array[Double](" + quote(x) + ".length)")
+        stream.println("for(i <- 0 until " + quote(sym) + ".length) {")
+        stream.println(quote(sym) + "(i) = Math.max(0," + quote(x) + "(i))")
         stream.println("}")
         
       case VectorScaleExp(x,s) =>

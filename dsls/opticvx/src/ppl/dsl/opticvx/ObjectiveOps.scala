@@ -21,7 +21,8 @@ trait ObjectiveOps extends Base {
 
 trait ObjectiveOpsExp extends ObjectiveOps
   with NumericOpsExp with OrderingOpsExp with BooleanOpsExp with EffectExp {
-  self: ExprOpsExp with ExprShapeOpsExp with ConstraintOpsExp with OptVarOpsExp with SolverOpsExp with VectorOpsExp =>
+  self: ExprOpsExp with ExprShapeOpsExp with ConstraintOpsExp with MatlabCVXOpsExp
+    with OptVarOpsExp with SolverOpsExp with VectorOpsExp with AbstractMatrixOpsExp =>
 
   def minimize_over(x: Exp[Expr], vs: Seq[Exp[OptVar]]): Exp[Unit] = {
     val cx = canonicalize(x)
@@ -93,10 +94,92 @@ trait ObjectiveOpsExp extends ObjectiveOps
         problem_size = problem_size + v.size
       }
     }
+    //output the problem in matlab
+    //matlab_print_problem(cx,constraints,problem_size)
+    //sort the constraints
+    println("Transforming " + constraints.size + " constraints.")
+    val unconstrained_sz = problem_size
+    var psimplex_sz: Exp[Int] = Const(0)
+    var soc_ns: Seq[Exp[Int]] = Seq()
+    var definite_ns: Seq[Exp[Int]] = Seq()
+    var zero_exps: Seq[ExprTr] = Seq()
+    for(c <- constraints) {
+      c match {
+        case ConstrainZero(x: Exp[Expr]) =>
+          println("Processing equality constraint...")
+          zero_exps = zero_exps :+ canonicalize(x)
+        case _ =>
+          //println("Deferring non-equality constraint of type " + c.getClass())
+      }
+    }
+    for(c <- constraints) {
+      c match {
+        case cc: ConstrainNonnegative =>
+          val x = cc.x
+          println("Processing nonnegative constraint...")
+          val vcx = new OptVarExp(scalar())
+          vcx.lookup_offset = problem_size
+          zero_exps = zero_exps :+ canonicalize(x.asInstanceOf[Def[Expr]] - vcx)
+          problem_size = problem_size + Const(1)
+          psimplex_sz = psimplex_sz + Const(1)
+        case _ =>
+          //println("Deferring non-nonnegative constraint of type " + c.getClass())
+      }
+    }
+    for(c <- constraints) {
+      c match {
+        case cc: ConstrainSecondOrderCone =>
+          val x = cc.x
+          val z = cc.z
+          println("Processing second-order cone constraint...")
+          val vcx = new OptVarExp(x.shape())
+          vcx.lookup_offset = problem_size
+          zero_exps = zero_exps :+ canonicalize(x.asInstanceOf[Def[Expr]] - vcx)
+          problem_size = problem_size + x.size
+          val vcz = new OptVarExp(scalar())
+          vcz.lookup_offset = problem_size
+          zero_exps = zero_exps :+ canonicalize(z.asInstanceOf[Def[Expr]] - vcz)
+          problem_size = problem_size + Const(1)
+          canonicalize(x.shape()) match {
+            case ExprShapeVectorExp(n) =>
+              soc_ns :+= n
+            case _ =>
+              throw new Exception("Internal Error: Invalid shape on SOC constraint.")
+          }
+        case _ =>
+          //println("Deferring non-soc constraint of type " + c.getClass())
+      }
+    }
+    for(c <- constraints) {
+      c match {
+        case cc: ConstrainSemidefinite =>
+          val x = cc.x
+          println("Processing semidefinite constraint...")
+          val vcx = new OptVarExp(x.shape())
+          vcx.lookup_offset = problem_size
+          zero_exps = zero_exps :+ canonicalize(x.asInstanceOf[Def[Expr]] - vcx)
+          problem_size = problem_size + x.size
+          canonicalize(x.shape()) match {
+            case ExprShapeSMatrixExp(n) =>
+              definite_ns :+= n
+            case _ =>
+              throw new Exception("Internal Error: Invalid shape on definiteness constraint.")
+          }
+        case _ =>
+          //println("Deferring non-semidefinite constraint of type " + c.getClass())
+      }
+    }
+    println("Transformed to " + zero_exps.length + " total constraints.")
+    //convert into standard form
+    val stdA = new ExprSeqMatrix(zero_exps, problem_size)
+    var stdB = vector_zeros(Const(0))
+    for(x <- zero_exps) {
+      stdB = vector_cat(stdB, x.get_b())
+    }
+    val stdC = cx.get_ATy(vector1(Const(1.0)), problem_size)
+    val stdK = SymmetricCone(unconstrained_sz, psimplex_sz, soc_ns, definite_ns)
     //invoke the solver
-    //val solution = fresh[CVXVector]
-    //createDefinition(solution, solve(cx, constraints, problem_size))
-    val solution = solve(cx, constraints, problem_size)
+    val solution = solve(stdA, stdB, stdC, stdK)
     //distribute the solution
     for(v <- convars) {
       if(v.solved == false) {
@@ -104,6 +187,36 @@ trait ObjectiveOpsExp extends ObjectiveOps
         v.lookup_offset = null
         v.solved = true
       }
+    }
+  }
+
+  class ExprSeqMatrix(es: Seq[ExprTr], sz: Exp[Int]) extends AbstractMatrix {
+    def m(): Exp[Int] = {
+      var rv: Exp[Int] = Const(0)
+      for(e <- es) {
+        rv = (rv + e.size)
+      }
+      rv
+    }
+
+    def n(): Exp[Int] = sz
+
+    def get_Ax(x: Exp[CVXVector]): Exp[CVXVector] = {
+      var rv: Exp[CVXVector] = vector_zeros(Const(0))
+      for(e <- es) {
+        rv = vector_cat(rv, e.get_Ax(x))
+      }
+      rv
+    }
+
+    def get_ATy(y: Exp[CVXVector]): Exp[CVXVector] = {
+      var rv: Exp[CVXVector] = vector_zeros(sz)
+      var ind: Exp[Int] = Const(0)
+      for(e <- es) {
+        rv = vector_sum(rv, e.get_ATy(vector_select(y, ind, e.size), sz))
+        ind = ind + e.size
+      }
+      rv
     }
   }
 }
