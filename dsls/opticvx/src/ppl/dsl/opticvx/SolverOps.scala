@@ -34,7 +34,7 @@ trait SolverOpsExp extends SolverOps
     
   }
   
-  //minimize c'*x subject to A*x + b = 0 and x \in K
+  //minimize c'*x subject to A*x = b and x \in K
   def solve(A: AbstractMatrix, b: Exp[CVXVector], c: Exp[CVXVector], K: SymmetricCone): Exp[CVXVector] = {
     println(Const("Matrix A is ") + string_valueof(A.m()) + Const(" by ") + string_valueof(A.n()))
     new Problem(A,b,c,K).solve()
@@ -48,12 +48,12 @@ trait SolverOpsExp extends SolverOps
     
     
     def solve(): Exp[CVXVector] = {
-      println(Const("Setting up solver..."))
+      //println(Const("Setting up solver..."))
+      println(Const("Solving..."))
       setup()
       val x = var_new[CVXVector](vector_zeros(A.n()))
       val niters = var_new[Int](Const(0))
-      println(Const("Solving..."))
-      __whileDo(niters <= Const(100), {
+      __whileDo(niters <= Const(10000), {
         //print(Const("Iteration ") + string_valueof(readVar(niters)) + ": " + vector_to_string_matlab(readVar(x)))
         var_assign(x, vector_sum(readVar(x),vector_scale(c_hat,Const(-1.0)*step_size(niters))))
         //print(Const(" -> ") + vector_to_string_matlab(readVar(x)))
@@ -67,20 +67,25 @@ trait SolverOpsExp extends SolverOps
     
     def setup() {
       //compute A^-1*b
-      //println(Const("         b = ") + vector_to_string_matlab(b))
-      val Ainv = amatrix_inv_lsqr(A,Const(1e-20),Const(20))
+      //println(Const("A = ") + vector_to_string_matlab(A.get_ATy(vector1(Const(1.0)))))
+      //println(Const("b = ") + vector_to_string_matlab(b))
+      //println(Const("c = ") + vector_to_string_matlab(c))
+      //println(Const("K.sz_unc = ") + string_valueof(K.unconstrained_sz))
+      //println(Const("K.sz_pos = ") + string_valueof(K.psimplex_sz))
+      //println(Const(""))
+      val Ainv = amatrix_inv_lsqr(A,Const(0.001),Const(20))
       Ainv_b = Ainv.get_Ax(b)
       //println(Const("    Ainv*b = ") + vector_to_string_matlab(Ainv_b))
       //println(Const("A*(Ainv*b) = ") + vector_to_string_matlab(A.get_Ax(Ainv_b)))
       //setup the projection matrix
-      val AATinv = amatrix_inv_lsqr(amatrix_prod(A,amatrix_transp(A)),Const(1e-20),Const(10))
+      val AATinv = amatrix_inv_lsqr(amatrix_prod(A,amatrix_transp(A)),Const(0.001),Const(10))
       PA = amatrix_prod(amatrix_prod(amatrix_transp(A),AATinv),A)
       //normalize the objective
       c_hat = vector_scale(c, Const(1.0)/math_sqrt(vector_dot(c,c)))
     }
     
     def step_size(iter: Exp[Int]): Exp[Double] = {
-      Const(0.01)/repIntToRepDouble(iter+Const(1))
+      Const(1.0)/math_sqrt(repIntToRepDouble(iter+Const(1)))
     }
     
     def project_onto_Axb(x: Exp[CVXVector]): Exp[CVXVector] = {
@@ -94,12 +99,12 @@ trait SolverOpsExp extends SolverOps
       val xrv = vector_sum(xmp,Ainv_b)
       //println(Const("Projection return size: ") + string_valueof(vector_len(xrv)))
       //return the computed value
-      println(Const("in = ") + vector_to_string_matlab(x))
-      println(Const(" b = ") + vector_to_string_matlab(b))
-      println(Const("rv = ") + vector_to_string_matlab(xrv))
-      println(Const("Am = ") + vector_to_string_matlab(A.get_Ax(xmp)))
-      println(Const("Ar = ") + vector_to_string_matlab(A.get_Ax(xrv)))
-      println(Const(""))
+      //println(Const("in = ") + vector_to_string_matlab(x))
+      //println(Const(" b = ") + vector_to_string_matlab(b))
+      //println(Const("rv = ") + vector_to_string_matlab(xrv))
+      //println(Const("Am = ") + vector_to_string_matlab(A.get_Ax(xmp)))
+      //println(Const("Ar = ") + vector_to_string_matlab(A.get_Ax(xrv)))
+      //println(Const(""))
       return xrv
     }
     
