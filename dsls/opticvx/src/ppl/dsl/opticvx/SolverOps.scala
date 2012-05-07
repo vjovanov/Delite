@@ -48,11 +48,11 @@ trait SolverOpsExp extends SolverOps
     
     
     def solve(): Exp[CVXVector] = {
-      println(Const("Setting up solver..."))
+      //println(Const("Setting up solver..."))
+      println(Const("Solving..."))
       setup()
       val x = var_new[CVXVector](vector_zeros(A.n()))
       val niters = var_new[Int](Const(0))
-      println(Const("Solving..."))
       __whileDo(niters <= Const(10000), {
         //print(Const("Iteration ") + string_valueof(readVar(niters)) + ": " + vector_to_string_matlab(readVar(x)))
         var_assign(x, vector_sum(readVar(x),vector_scale(c_hat,Const(-1.0)*step_size(niters))))
@@ -68,11 +68,11 @@ trait SolverOpsExp extends SolverOps
     def setup() {
       //compute A^-1*b
       //println(Const("A = ") + vector_to_string_matlab(A.get_ATy(vector1(Const(1.0)))))
-      println(Const("b = ") + vector_to_string_matlab(b))
-      println(Const("c = ") + vector_to_string_matlab(c))
-      println(Const("K.sz_unc = ") + string_valueof(K.unconstrained_sz))
-      println(Const("K.sz_pos = ") + string_valueof(K.psimplex_sz))
-      println(Const(""))
+      //println(Const("b = ") + vector_to_string_matlab(b))
+      //println(Const("c = ") + vector_to_string_matlab(c))
+      //println(Const("K.sz_unc = ") + string_valueof(K.unconstrained_sz))
+      //println(Const("K.sz_pos = ") + string_valueof(K.psimplex_sz))
+      //println(Const(""))
       val Ainv = amatrix_inv_lsqr(A,Const(0.001),Const(20))
       Ainv_b = Ainv.get_Ax(b)
       //println(Const("    Ainv*b = ") + vector_to_string_matlab(Ainv_b))
