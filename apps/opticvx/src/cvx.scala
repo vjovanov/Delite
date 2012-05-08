@@ -41,8 +41,8 @@ cvx_end
     val x = variable()
     val y = variable()
     val z = variable()
-    //val a = variable()
-    //val b = variable()
+    val a = variable()
+    val b = variable()
     //println("Vartle")
     //val z = variable(smatrix(3))
     //for(i <- 0 until 10) {
@@ -63,22 +63,25 @@ cvx_end
     //max(x,max(y,u)) <= inputscalar(2.0)
     //minimize (max(x,u)) over (u,x,y)
 
-    //max(x,y) <= inputscalar(2.0)
-    //min(x,y) >= inputscalar(0.0)
+    max(x,y) <= inputscalar(2.0)
+    min(x,y) >= inputscalar(0.0)
+    min(x,z) >= inputscalar(3.7)
+    max(y,a) <= inputscalar(4.8)
+    b >= inputscalar(3.0)
 
-    //minimize (x-y) over (x,y)
+    minimize (x-y+a+b-z) over (x,y,z,a,b)
 
-    x <= inputscalar(6.0)
-    x >= inputscalar(3.0)
+    //x <= inputscalar(6.0)
+    //x >= inputscalar(3.0)
     //y >= inputscalar(1.0)
-    y >= inputscalar(-2.0)
-    y <= inputscalar(2.0)
-    val J = x - y
-    minimize (J) over (x,y)
+    //y >= inputscalar(-2.0)
+    //y <= inputscalar(2.0)
+    //val J = x - y
+    //minimize (J) over (x,y)
 
     println("x = " + resolve(x))
     println("y = " + resolve(y))
-    println("J = " + resolve(J))
+    //println("J = " + resolve(J))
 
     //a <= inputscalar(1.0)
     //b <= inputscalar(1.0)
