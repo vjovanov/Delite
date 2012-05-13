@@ -105,9 +105,10 @@ trait ObjectiveOpsExp extends ObjectiveOps
     var zero_exps: Seq[ExprTr] = Seq()
     for(c <- constraints) {
       c match {
-        case ConstrainZero(x: Exp[Expr]) =>
+        case cc: ConstrainZero =>
+          val x = cc.x
           println("Processing equality constraint...")
-          zero_exps = zero_exps :+ canonicalize(x)
+          zero_exps = zero_exps :+ x
         case _ =>
           //println("Deferring non-equality constraint of type " + c.getClass())
       }

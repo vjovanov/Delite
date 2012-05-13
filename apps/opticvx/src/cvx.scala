@@ -38,11 +38,11 @@ cvx_end
 
   def main() = {
     //println("Cheese!")
-    val x = variable()
-    val y = variable()
-    val z = variable()
-    val a = variable()
-    val b = variable()
+    //val x = variable()
+    //val y = variable()
+    //val z = variable()
+    //val a = variable()
+    //val b = variable()
     //println("Vartle")
     //val z = variable(smatrix(3))
     //for(i <- 0 until 10) {
@@ -63,13 +63,10 @@ cvx_end
     //max(x,max(y,u)) <= inputscalar(2.0)
     //minimize (max(x,u)) over (u,x,y)
 
-    max(x,y) <= inputscalar(2.0)
-    min(x,y) >= inputscalar(0.0)
-    min(x,z) >= inputscalar(3.7)
-    max(y,a) <= inputscalar(4.8)
-    b >= inputscalar(3.0)
+    //x >= inputscalar(-1.0)
+    //y >= inputscalar(-8.0)
 
-    minimize (x-y+a+b-z) over (x,y,z,a,b)
+    //minimize (x+y) over (x,y)
 
     //x <= inputscalar(6.0)
     //x >= inputscalar(3.0)
@@ -79,9 +76,22 @@ cvx_end
     //val J = x - y
     //minimize (J) over (x,y)
 
-    println("x = " + resolve(x))
-    println("y = " + resolve(y))
+    //println("x = " + resolve(x))
+    //println("y = " + resolve(y))
     //println("J = " + resolve(J))
+
+    //println("min(3,5) = " + resolve(min(inputscalar(3.0),inputscalar(5.0))))
+    println("inv(0.5) = " + resolve(inv(inputscalar(0.5))))
+
+    //val t = variable()
+    //val x = variable(vector(2))
+    //x(0) >= inputscalar(1.0)
+    //x(1) >= inputscalar(1.0)
+    //constrain_secondordercone(x,t)
+    //minimize (t) over (x, t)
+    
+    //println("x = (" + resolve(x(0)) + ", " + resolve(x(1)) + ")")
+    //println("t = " + resolve(t))
 
     //a <= inputscalar(1.0)
     //b <= inputscalar(1.0)
@@ -108,6 +118,18 @@ cvx_end
   })
 
   val inv = cvxfun (convex) arguments (decreasing) body ((x) => {
+    val v = variable(vector(2))
+    val z = variable()
+    v(0) == inputscalar(1.0)
+    val J = z - v(1)
+    x == z + v(1)
+    constrain_secondordercone(v,z)
+    minimize (J) over (v, z)
+    J
+  })
+
+  /*
+  val inv = cvxfun (convex) arguments (decreasing) body ((x) => {
     val t = variable()
     val M = variable(symmetric_matrix(2))
     M(0,0) == t
@@ -118,6 +140,7 @@ cvx_end
     minimize (t) over (t, M)
     t
   })
+  */
 
   /*
   def max(x: Rep[Expr[ShapeClassScalar,Vexity#Convex]], y: Rep[Expr[ShapeClassScalar,Vexity#Convex]]): Rep[Expr[ShapeClassScalar,Vexity#Convex]] = {

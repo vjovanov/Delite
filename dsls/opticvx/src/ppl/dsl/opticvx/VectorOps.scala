@@ -6,6 +6,8 @@ import scala.virtualization.lms.common.{EffectExp, BaseExp, VariablesExp, Base}
 import scala.virtualization.lms.common.ScalaGenBase
 import ppl.delite.framework.ops.{DeliteOpsExp}
 
+import scala.reflect.SourceContext
+
 import java.io.PrintWriter
 
 
@@ -34,6 +36,11 @@ trait VectorOpsExp extends VectorOps
   def vector_positive_part(x: Exp[CVXVector]): Exp[CVXVector]
     = VectorPositivePartExp(x)
     
+  //negation of a vector
+  case class VectorIsPositiveExp(x: Exp[CVXVector]) extends Def[Boolean]
+  def vector_ispositive(x: Exp[CVXVector]): Exp[Boolean]
+    = VectorIsPositiveExp(x)
+    
   //scale of a vector
   case class VectorScaleExp(x: Exp[CVXVector], s: Exp[Double]) extends Def[CVXVector]
   def vector_scale(x: Exp[CVXVector], s: Exp[Double]): Exp[CVXVector]
@@ -58,6 +65,11 @@ trait VectorOpsExp extends VectorOps
   case class VectorZeros(len: Exp[Int]) extends Def[CVXVector]
   def vector_zeros(len: Exp[Int]): Exp[CVXVector]
     = VectorZeros(len)
+    
+  //create a ones-vector
+  case class VectorOnes(len: Exp[Int]) extends Def[CVXVector]
+  def vector_ones(len: Exp[Int]): Exp[CVXVector]
+    = VectorOnes(len)
 
   //create a size-1 vector with a particular value
   case class Vector1(u: Exp[Double]) extends Def[CVXVector]
@@ -93,8 +105,14 @@ trait ScalaGenVectorOps extends ScalaGenBase {
   override def emitNode(sym: Sym[Any], rhs: Def[Any])(implicit stream: PrintWriter) = {
     rhs match {
       case VectorSumExp(x,y) =>
-        stream.println("if(" + quote(x) + ".length != " + quote(y) + ".length)")
+        stream.println("if(" + quote(x) + ".length != " + quote(y) + ".length) {")
+        for(sc <- sym.pos) {
+          stream.println("println(\"At " + sc.fileName + ": " + sc.line + " (" + sc.charOffset + ")\")")
+        }
+        stream.println("println(\"With x = " + findDefinition(x.asInstanceOf[Sym[_]]).toString() + "\")")
+        stream.println("println(\"With y = " + findDefinition(y.asInstanceOf[Sym[_]]).toString() + "\")")
         stream.println("throw new Exception(\"OptiCVX Runtime Error: Vector length mismatch on sum (\" + " + quote(x) + ".length + \" vs \" + " + quote(y) + ".length + \").\")")
+        stream.println("}")
         stream.println("val " + quote(sym) + " = new Array[Double](" + quote(x) + ".length)")
         stream.println("for(i <- 0 until " + quote(sym) + ".length) {")
         stream.println(quote(sym) + "(i) = " + quote(x) + "(i) + " + quote(y) + "(i)")
@@ -121,6 +139,13 @@ trait ScalaGenVectorOps extends ScalaGenBase {
         stream.println(quote(sym) + "(i) = Math.max(0.0," + quote(x) + "(i))")
         stream.println("}")
         
+      case VectorIsPositiveExp(x) =>
+        stream.println("var acc" + quote(sym) + " = true")
+        stream.println("for(elem" + quote(sym) + " <- " + quote(x) + ") {")
+        stream.println("acc" + quote(sym) + " &&= (elem" + quote(sym) + " >= 0.0)")
+        stream.println("}")
+        stream.println("val " + quote(sym) + " = acc" + quote(sym))
+        
       case VectorScaleExp(x,s) =>
         stream.println("val " + quote(sym) + " = new Array[Double](" + quote(x) + ".length)")
         stream.println("for(i <- 0 until " + quote(sym) + ".length) {")
@@ -128,12 +153,17 @@ trait ScalaGenVectorOps extends ScalaGenBase {
         stream.println("}")
         
       case VectorSelectExp(x, offset, len) =>
+        stream.println("val " + quote(sym) + " = " + quote(x) + ".slice(" + quote(offset) + ", " + quote(offset) + "+" + quote(len) + ")")
+        /*
         stream.println("val " + quote(sym) + " = new Array[Double](" + quote(len) + ")")
         stream.println("for(i <- 0 until " + quote(sym) + ".length) {")
         stream.println(quote(sym) + "(i) = " + quote(x) + "(i + " + quote(offset) + ")")
         stream.println("}")
+        */
         
       case VectorCatExp(x, y) =>
+        stream.println("val " + quote(sym) + " = " + quote(x) + "++" + quote(y))
+        /*
         stream.println("val " + quote(sym) + " = new Array[Double](" + quote(x) + ".length + " + quote(y) + ".length)")
         stream.println("for(i <- 0 until " + quote(x) + ".length) {")
         stream.println(quote(sym) + "(i) = " + quote(x) + "(i)")
@@ -141,11 +171,18 @@ trait ScalaGenVectorOps extends ScalaGenBase {
         stream.println("for(i <- 0 until " + quote(y) + ".length) {")
         stream.println(quote(sym) + "(i + " + quote(x) + ".length) = " + quote(y) + "(i)")
         stream.println("}")
+        */
         
       case VectorZeros(len) =>
         stream.println("val " + quote(sym) + " = new Array[Double](" + quote(len) + ")")
         stream.println("for(i <- 0 until " + quote(sym) + ".length) {")
         stream.println(quote(sym) + "(i) = 0.0")
+        stream.println("}")
+                
+      case VectorOnes(len) =>
+        stream.println("val " + quote(sym) + " = new Array[Double](" + quote(len) + ")")
+        stream.println("for(i <- 0 until " + quote(sym) + ".length) {")
+        stream.println(quote(sym) + "(i) = 1.0")
         stream.println("}")
         
       case Vector1(u) =>

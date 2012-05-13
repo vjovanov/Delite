@@ -31,23 +31,220 @@ trait SolverOpsExp extends SolverOps
     //n values for definitness constraints
     val definite_ns: Seq[Exp[Int]]
   ) {
-    
+    def contains(x: Exp[CVXVector]): Exp[Boolean] = {
+      var ind = unconstrained_sz
+      val xsimplex = vector_select(x,ind,psimplex_sz);
+      ind  = ind + psimplex_sz
+      var rv = vector_ispositive(xsimplex)
+      for(n <- soc_ns) {
+        val cx: Exp[CVXVector] = vector_select(x,ind,n)
+        ind = ind + n
+        val cz: Exp[Double] = vector_at(x, ind)
+        ind = ind + unit(1)
+        val norm2cx: Exp[Double] = vector_dot(cx,cx);
+        rv = rv && ((cz*cz) >= norm2cx)
+      }
+      for(n <- definite_ns) {
+        //throw an error as this projection is not implemented
+        throw new Exception("Definitness constraints not implemented yet.")
+      }
+      rv
+    }
+    def project(x: Exp[CVXVector]): Exp[CVXVector] = {
+      val rv = var_new[CVXVector](vector_zeros(Const(0)))
+      var ind: Exp[Int] = Const(0)
+      //pass the constants through unmodified
+      var_assign(rv, vector_cat(readVar(rv), vector_select(x, ind, unconstrained_sz)))
+      ind = ind + unconstrained_sz
+      //make the positive simplex nodes positive
+      var_assign(rv, vector_cat(readVar(rv), vector_positive_part(vector_select(x, ind, psimplex_sz))))
+      ind = ind + psimplex_sz
+      //project onto second-order cones
+      for(n <- soc_ns) {
+        val cx: Exp[CVXVector] = vector_select(x, ind, n)
+        ind = ind + n
+        val cz: Exp[Double] = vector_at(x, ind)
+        ind = ind + Const(1)
+        val norm2cx: Exp[Double] = vector_dot(cx,cx);
+        if((cz*cz) >= norm2cx) {
+          if(cz <= Const(0.0)) {
+            //projection is onto the zero point
+            var_assign(rv, vector_cat(readVar(rv), vector_zeros(n + Const(1))))
+          }
+          else {
+            //projection retains the original value
+            var_assign(rv, vector_cat(readVar(rv), cx))
+            var_assign(rv, vector_cat(readVar(rv), vector1(cz)))
+          }
+        }
+        else {
+          //use the projection formula on pg447 of Boyd and Vandenberghe
+          val normcx: Exp[Double] = math_sqrt(norm2cx)
+          val cscale: Exp[Double] = Const(0.5)*(Const(1.0) + cz/normcx)
+          var_assign(rv, vector_cat(readVar(rv), vector_scale(cx, cscale)))
+          var_assign(rv, vector_cat(readVar(rv), vector1(normcx * cscale)))
+        }
+      }
+      //project onto semidefinite cone
+      for(n <- definite_ns) {
+        //throw an error as this projection is not implemented
+        throw new Exception("Definitness constraints not implemented yet.")
+      }
+      //return the accumulated vector
+      return readVar(rv)    
+    }
+    def project_dual(x: Exp[CVXVector]): Exp[CVXVector] = {
+      val proj = project(x)
+      vector_cat(vector_zeros(unconstrained_sz),vector_select(proj,unconstrained_sz,vector_len(proj)-unconstrained_sz))
+    }
   }
   
   //minimize c'*x subject to A*x = b and x \in K
   def solve(A: AbstractMatrix, b: Exp[CVXVector], c: Exp[CVXVector], K: SymmetricCone): Exp[CVXVector] = {
     println(Const("Matrix A is ") + string_valueof(A.m()) + Const(" by ") + string_valueof(A.n()))
-    new Problem(A,b,c,K).solve()
+    new PrimalDualHomogenousSolver(A,b,c,K).solve()
   }
   
-  class Problem(A: AbstractMatrix, b: Exp[CVXVector], c: Exp[CVXVector], K: SymmetricCone) {
+  trait Solver {
+    def solve(): Exp[CVXVector]
+  }
+  
+  class PrimalDualHomogenousSolver(A: AbstractMatrix, b: Exp[CVXVector], c: Exp[CVXVector], K: SymmetricCone) extends Solver {
     
+    var M: AbstractMatrix = null
+    var PM: AbstractMatrix = null
+    
+    def setup() {
+      A = amatrix_lambda(A)
+      //initialize homogenous embedding matrix
+      M = A :: amatrix_zeros(A.m(),A.m()+A.n()-K.unconstrained_sz) :: amatrix_fromvector(vector_neg(b)) :: amatrix_zeros(A.m(),unit(1))
+      //println(unit("M is now ") + string_valueof(M.m()) + "x" + string_valueof(M.n()))
+      M :::= amatrix_zeros(A.n(),A.n()) :: amatrix_transp(A) :: (amatrix_zeros(K.unconstrained_sz,A.n()-K.unconstrained_sz) ::: amatrix_identity(A.n()-K.unconstrained_sz)) :: amatrix_fromvector(vector_neg(c)) :: amatrix_zeros(A.n(),unit(1))
+      //println(unit("M is now ") + string_valueof(M.m()) + "x" + string_valueof(M.n()))
+      M :::= amatrix_transp(amatrix_fromvector(c)) :: amatrix_transp(amatrix_fromvector(vector_neg(b))) :: amatrix_zeros(unit(1),A.n()+unit(1)-K.unconstrained_sz) :: amatrix_identity(unit(1))
+      //println(unit("M is now ") + string_valueof(M.m()) + "x" + string_valueof(M.n()))
+      //initialize projection matrix
+      val MMTinv = amatrix_inv_lsqr(amatrix_prod(M,amatrix_transp(M)),Const(0.001),Const(10))
+      PM = amatrix_prod(amatrix_prod(amatrix_transp(M),MMTinv),M)
+      PM = amatrix_lambda(PM)
+    }
+    
+    def select_x(vv: Exp[CVXVector]) = vector_select(vv,unit(0),A.n())
+    def select_y(vv: Exp[CVXVector]) = vector_select(vv,A.n(),A.m())
+    def select_lambda(vv: Exp[CVXVector]) = vector_select(vv,A.n()+A.m(),A.n()-K.unconstrained_sz)
+    def select_tau(vv: Exp[CVXVector]) = vector_at(vv,A.n()+A.m()+A.n()-K.unconstrained_sz)
+    def select_rho(vv: Exp[CVXVector]) = vector_at(vv,A.n()+A.m()+A.n()-K.unconstrained_sz+unit(1))
+    
+    def project_onto_KK(vv: Exp[CVXVector]): Exp[CVXVector] = {
+      //println(unit("selecting x..."))
+      val x = select_x(vv)
+      //println(unit("selecting y..."))
+      val y = select_y(vv)
+      //println(unit("selecting lambda..."))
+      val lambda = select_lambda(vv)
+      //println(unit("selecting tau..."))
+      val tau = select_tau(vv)
+      //println(unit("selecting rho..."))
+      val rho = select_rho(vv)
+      
+      //println(unit("projecting x..."))
+      val x_proj = K.project(x)
+      //println(unit("projecting lambda..."))
+      val lambda_proj = vector_select(K.project(vector_cat(vector_zeros(K.unconstrained_sz),lambda)),K.unconstrained_sz,A.n()-K.unconstrained_sz)
+      val tau_proj = math_max(unit(1.0),tau)
+      val rho_proj = math_max(unit(0.0),rho)
+      
+      //println(unit("assembling result..."))
+      val rv = vector_cat(vector_cat(vector_cat(vector_cat(x_proj, y),lambda_proj),vector1(tau_proj)),vector1(rho_proj))
+      /*
+      println(unit("len(x) = ") + string_valueof(vector_len(x)))
+      println(unit("len(PK(x)) = ") + string_valueof(vector_len(x_proj)))
+      println(unit("len(lambda) = ") + string_valueof(vector_len(lambda)))
+      println(unit("len(PK(lambda)) = ") + string_valueof(vector_len(lambda_proj)))
+      println(unit("len(vv) = ") + string_valueof(vector_len(vv)))
+      println(unit("len(rv) = ") + string_valueof(vector_len(rv)))
+      */
+      rv
+    }
+    
+    def in_KK(vv: Exp[CVXVector]): Exp[Boolean] = {
+      val x = select_x(vv)
+      val lambda = select_lambda(vv)
+      K.contains(x) && K.contains(vector_cat(vector_zeros(K.unconstrained_sz),lambda))
+    }
+    
+    def project_onto_Mx(vv: Exp[CVXVector]): Exp[CVXVector] = {
+      val rv = vector_sum(vv,vector_neg(PM.get_Ax(vv)))
+      //println(unit("vv = ") + vector_to_string_matlab(vv))
+      //println(unit("P(vv) = ") + vector_to_string_matlab(rv))
+      //println(unit("MP(vv) = ") + vector_to_string_matlab(M.get_Ax(rv)))
+      //println(unit(""))
+      val erv = M.get_Ax(rv)
+      //println(unit("err = ") + string_valueof(math_sqrt(vector_dot(erv,erv))))
+      rv
+    }
+    
+    def overproject_onto_KK(vv: Exp[CVXVector]): Exp[CVXVector] = {
+      val rv = project_onto_KK(vv)
+      val dv = vector_sum(rv,vector_neg(vv))
+      vector_sum(vv,vector_scale(dv,unit(1.5)))
+    }
+    
+    def overproject_onto_Mx(vv: Exp[CVXVector]): Exp[CVXVector] = {
+      val rv = project_onto_Mx(vv)
+      val dv = vector_sum(rv,vector_neg(vv))
+      vector_sum(vv,vector_scale(dv,unit(1.5)))
+    }
+    
+    def solve(): Exp[CVXVector] = {
+      setup()
+      println(Const("Solving..."))
+      val vv = var_new[CVXVector](vector_cat(vector_cat(vector_zeros(M.n()-unit(2)),vector1(unit(1.0))),vector1(unit(0.0))))
+      val niters = var_new[Int](Const(0))
+      __whileDo(niters <= Const(10000), {
+        //println(unit("Projecting onto affine constraint..."))
+        var_assign(vv, overproject_onto_Mx(readVar(vv)))
+        //println(unit("Projecting onto conic constraint..."))
+        var_assign(vv, overproject_onto_KK(readVar(vv)))
+        //might want to add a strictly unnecessary renormalization step
+        //var_assign(vv, vector_scale(vv,unit(1.0)/math_sqrt(vector_dot(vv,vv))))
+        var_assign(niters, readVar(niters)+Const(1))
+      })
+      /*
+      println(unit("Solved!"))
+      println(unit("b = ") + vector_to_string_matlab(b))
+      println(unit("c = ") + vector_to_string_matlab(c))
+      println(unit("x = ") + vector_to_string_matlab(select_x(vv)))
+      println(unit("y = ") + vector_to_string_matlab(select_y(vv)))
+      val cx = vector_dot(c,select_x(vv))
+      println(unit("cx = ") + string_valueof(cx))
+      val by = vector_dot(b,select_y(vv))
+      println(unit("by = ") + string_valueof(by))
+      println(unit("L = ") + vector_to_string_matlab(select_lambda(vv)))
+      println(unit("T = ") + string_valueof(select_tau(vv)))
+      println(unit("R = ") + string_valueof(select_rho(vv)))
+      val MSTL = amatrix_transp(amatrix_fromvector(c)) :: amatrix_transp(amatrix_fromvector(vector_neg(b))) :: amatrix_zeros(unit(1),A.n()+unit(1)) :: amatrix_identity(unit(1))
+      println(unit("cx-by+T = ") + string_valueof(vector_at(MSTL.get_Ax(vv),unit(0))))
+      println(unit("MSTL = ") + vector_to_string_matlab(MSTL.get_ATy(vector1(unit(1.0)))))
+      val EE = M.get_Ax(vv)
+      val nE = math_sqrt(vector_dot(EE,EE))
+      println(unit("EV = ") + vector_to_string_matlab(EE))
+      println(unit("E = ") + string_valueof(nE))
+      println(unit(""))
+      */
+      vector_scale(select_x(vv),unit(1.0)/select_tau(vv))
+    }
+    
+  }
+  
+  class ProjectedGradientSolver(A: AbstractMatrix, b: Exp[CVXVector], c: Exp[CVXVector], K: SymmetricCone) extends Solver {
     var Ainv_b: Exp[CVXVector] = null
     var PA: AbstractMatrix = null
     var c_hat: Exp[CVXVector] = null
     
     
     def solve(): Exp[CVXVector] = {
+      A = amatrix_lambda(A)
       //println(Const("Setting up solver..."))
       println(Const("Solving..."))
       setup()
@@ -80,6 +277,7 @@ trait SolverOpsExp extends SolverOps
       //setup the projection matrix
       val AATinv = amatrix_inv_lsqr(amatrix_prod(A,amatrix_transp(A)),Const(0.001),Const(10))
       PA = amatrix_prod(amatrix_prod(amatrix_transp(A),AATinv),A)
+      PA = amatrix_lambda(PA)
       //normalize the objective
       c_hat = vector_scale(c, Const(1.0)/math_sqrt(vector_dot(c,c)))
     }
@@ -109,47 +307,90 @@ trait SolverOpsExp extends SolverOps
     }
     
     def project_onto_K(x: Exp[CVXVector]): Exp[CVXVector] = {
-      var rv: Exp[CVXVector] = vector_zeros(Const(0))
-      var ind: Exp[Int] = Const(0)
-      //pass the constants through unmodified
-      rv = vector_cat(rv, vector_select(x, ind, K.unconstrained_sz))
-      ind = ind + K.unconstrained_sz
-      //make the positive simplex nodes positive
-      rv = vector_cat(rv, vector_positive_part(vector_select(x, ind, K.psimplex_sz)))
-      ind = ind + K.psimplex_sz
-      //project onto second-order cones
-      for(n <- K.soc_ns) {
-        val cx: Exp[CVXVector] = vector_select(x, ind, n)
-        ind = ind + n
-        val cz: Exp[Double] = vector_at(x, ind)
-        ind = ind + Const(1)
-        val norm2cx: Exp[Double] = vector_dot(cx,cx);
-        if((cz*cz) >= norm2cx) {
-          if(cz <= Const(0.0)) {
-            //projection is onto the zero point
-            rv = vector_cat(rv, vector_zeros(n + Const(1)))
-          }
-          else {
-            //projection retains the original value
-            rv = vector_cat(rv, cx)
-            rv = vector_cat(rv, vector1(cz))
-          }
+      K.project(x)
+    }
+  }
+  
+  
+  class PrimalProjectionSolver(A: AbstractMatrix, b: Exp[CVXVector], c: Exp[CVXVector], K: SymmetricCone) extends Solver {
+    var Ainv_b: Exp[CVXVector] = null
+    var PA: AbstractMatrix = null
+    var c_hat: Exp[CVXVector] = null
+    
+    
+    def solve(): Exp[CVXVector] = {
+      A = amatrix_lambda(A)
+      //println(Const("Setting up solver..."))
+      println(Const("Solving..."))
+      setup()
+      val x = var_new[CVXVector](vector_zeros(A.n()))
+      val iterend = var_new[Boolean](unit(false))
+      val niters = var_new[Int](Const(0))
+      __whileDo((niters <= Const(100))&&(!readVar(iterend)), {
+        //print(Const("Iteration ") + string_valueof(readVar(niters)) + ": " + vector_to_string_matlab(readVar(x)))
+        //no objective step
+        //var_assign(x, vector_sum(readVar(x),vector_scale(c_hat,Const(-1.0)*step_size(niters))))
+        //print(Const(" -> ") + vector_to_string_matlab(readVar(x)))
+        var_assign(x, project_onto_K(readVar(x)))
+        //println(Const(" -> ") + vector_to_string_matlab(readVar(x)))
+        var_assign(x, project_onto_Axb(readVar(x)))
+        var_assign(iterend, in_K(readVar(x)))
+        var_assign(niters, readVar(niters)+Const(1))
+      })
+      println(unit("Feasibile point finder converged in ") + string_valueof(readVar(niters)) + unit(" steps"))
+      println(unit("x = ") + vector_to_string_matlab(readVar(x)))
+      //get objective search direction
+      var objd = var_new[CVXVector](project_onto_Ax(vector_neg(c)))
+      //reset iteration count
+      var_assign(niters,unit(0))
+      var_assign(iterend,unit(false))
+      __whileDo((niters <= unit(100))&&(!readVar(iterend)), {
+        val xnext = vector_sum(x, readVar(objd))
+        if(in_K(xnext)) {
+          var_assign(x, xnext)
+          var_assign(objd, vector_scale(readVar(objd),unit(2.0)))
         }
         else {
-          //use the projection formula on pg447 of Boyd and Vandenberghe
-          val normcx: Exp[Double] = math_sqrt(norm2cx)
-          val cscale: Exp[Double] = Const(0.5)*(Const(1.0) + cz/normcx)
-          rv = vector_cat(rv, vector_scale(cx, cscale))
-          rv = vector_cat(rv, vector1(normcx * cscale))
+          var_assign(objd, vector_scale(readVar(objd),unit(0.5)))
         }
-      }
-      //project onto semidefinite cone
-      for(n <- K.definite_ns) {
-        //throw an error as this projection is not implemented
-        throw new Exception("Definitness constraints not implemented yet.")
-      }
-      //return the accumulated vector
-      return rv
+        var_assign(niters, readVar(niters)+Const(1))
+        var_assign(iterend, vector_dot(readVar(objd),readVar(objd)) <= unit(1e-10))
+      })
+      println(unit("Objective stepper converged in ") + string_valueof(readVar(niters)) + unit(" steps"))
+      println(unit("x = ") + vector_to_string_matlab(readVar(x)))      
+      readVar(x)
+    }
+    
+    def setup() {
+      //compute A^-1*b
+      val Ainv = amatrix_inv_lsqr(A,Const(0.001),Const(20))
+      Ainv_b = Ainv.get_Ax(b)
+      //setup the projection matrix
+      val AATinv = amatrix_inv_lsqr(amatrix_prod(A,amatrix_transp(A)),Const(0.001),Const(10))
+      PA = amatrix_prod(amatrix_prod(amatrix_transp(A),AATinv),A)
+      PA = amatrix_lambda(PA)
+      //normalize the objective
+      c_hat = vector_scale(c, Const(1.0)/math_sqrt(vector_dot(c,c)))
+    }
+    
+    def project_onto_Axb(x: Exp[CVXVector]): Exp[CVXVector] = {
+      val xm = vector_sum(x,vector_scale(Ainv_b,Const(-1.0)))
+      val xmp = vector_sum(xm,vector_scale(PA.get_Ax(xm),Const(-1.0)))
+      val xrv = vector_sum(xmp,Ainv_b)
+      return xrv
+    }
+    
+    def project_onto_Ax(x: Exp[CVXVector]): Exp[CVXVector] = {
+      vector_sum(x,vector_scale(PA.get_Ax(x),Const(-1.0)))
+    }
+    
+    def project_onto_K(x: Exp[CVXVector]): Exp[CVXVector] = {
+      val px = K.project(x)
+      vector_sum(x,vector_scale(vector_sum(px,vector_neg(x)),unit(1.5)))
+    }
+    
+    def in_K(x: Exp[CVXVector]): Exp[Boolean] = {
+      K.contains(x)
     }
   }
 }
