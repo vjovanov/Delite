@@ -4,6 +4,7 @@ import scala.virtualization.lms.common.{ScalaGenFat, BaseFatExp, Base}
 import ppl.dsl.optiql.{OptiQL, OptiQLExp}
 import ppl.delite.framework.ops.DeliteCollection
 import java.io.PrintWriter
+import scala.reflect.SourceContext
 
 trait DataTableOps extends Base { this: OptiQL =>
 

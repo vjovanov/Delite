@@ -34,7 +34,7 @@ import ppl.delite.runtime.graph.targets.{OS, OPData, Targets}
 
 trait GPUExecutableGenerator {
 
-  protected def addKernelCalls(schedule: ArrayDeque[DeliteOP], location: Int, available: ArrayBuffer[DeliteOP], awaited: ArrayBuffer[DeliteOP], syncList: ArrayBuffer[DeliteOP], out: StringBuilder)
+  protected def addKernelCalls(schedule: ArrayDeque[DeliteOP], location: Int, available: ArrayBuffer[(DeliteOP,String)], awaited: ArrayBuffer[DeliteOP], syncList: ArrayBuffer[DeliteOP], out: StringBuilder)(implicit aliases:AliasTable[(DeliteOP,String)])
 
   protected def executableName: String
 
@@ -61,6 +61,7 @@ trait GPUExecutableGenerator {
       case "Short" => "jshort"
       case "Char" => "jchar"
       case "Byte" => "jbyte"
+      //case r if r.startsWith("generated.scala.Ref[") => getJNIType(r.slice(20,r.length-1))
       case _ => "jobject"//all other types are objects
     }
   }
@@ -76,6 +77,7 @@ trait GPUExecutableGenerator {
       case "Short" => "S"
       case "Char" => "C"
       case "Byte" => "B"
+      //case r if r.startsWith("generated.scala.Ref[") => getJNIArgType(r.slice(20,r.length-1))
       case array if array.startsWith("Array[") => "[" + getJNIArgType(array.slice(6,array.length-1))
       case _ => { //all other types are objects
         var objectType = scalaType.replace('.','/')
@@ -96,6 +98,7 @@ trait GPUExecutableGenerator {
       case "Short" => "S"
       case "Char" => "C"
       case "Byte" => "B"
+      //case r if r.startsWith("generated.scala.Ref[") => getJNIOutputType(r.slice(20,r.length-1))
       case array if array.startsWith("Array[") => "[" + getJNIOutputType(array.slice(6,array.length-1))
       case _ => { //all other types are objects
         var objectType = scalaType.replace('.','/')
@@ -115,6 +118,7 @@ trait GPUExecutableGenerator {
     case "Short" => "Short"
     case "Char" => "Char"
     case "Byte" => "Byte"
+    //case r if r.startsWith("generated.scala.Ref[") => getJNIFuncType(r.slice(20,r.length-1))
     case _ => "Object"//all other types are objects
   }
 
@@ -128,6 +132,7 @@ trait GPUExecutableGenerator {
     case "Short" => "short"
     case "Char" => "char"
     case "Byte" => "char"
+    case r if r.startsWith("generated.scala.Ref[") => getCPrimitiveType(r.slice(20,r.length-1))
     case other => error(other + " is not a primitive type")
   }
 
@@ -141,12 +146,12 @@ trait GPUExecutableGenerator {
     case "Short" => true
     case "Char" => true
     case "Byte" => true
+    case r if r.startsWith("generated.scala.Ref[") => isPrimitiveType(r.slice(20,r.length-1))
     case _ => false
   }
 
-  protected def writeJNIInitializer(location: Int, out: StringBuilder) {
-    //TODO: this loop should not assume its location is the last
-    for (i <- 0 to location) {
+  protected def writeJNIInitializer(locations: Set[Int], out: StringBuilder) {
+    for (i <- locations) {
       out.append("jclass cls")
       out.append(i)
       out.append(" = env->FindClass(\"")
@@ -157,6 +162,16 @@ trait GPUExecutableGenerator {
     //add a reference to the singleton of scala.runtime.BoxedUnit for use everywhere required
     out.append("jclass clsBU = env->FindClass(\"scala/runtime/BoxedUnit\");\n")
     out.append("jobject boxedUnit = env->GetStaticObjectField(clsBU, env->GetStaticFieldID(clsBU, \"UNIT\", \"Lscala/runtime/BoxedUnit;\"));\n")
+  }
+
+  protected def writeJNIFinalizer(locations: Set[Int], out: StringBuilder) {
+    for (i <- locations) {
+      out.append("env->DeleteLocalRef(cls")
+      out.append(i)
+      out.append(");\n")
+    }
+    out.append("env->DeleteLocalRef(clsBU);\n")
+    out.append("env->DeleteLocalRef(boxedUnit);\n")
   }
 
   protected def emitCppHeader: String

@@ -28,6 +28,7 @@ abstract class NestedGenerator(nested: OP_Nested, location: Int) extends Executa
   override protected def getSync(op: DeliteOP, name: String) = NestedCommon.getSync(baseId, op, name)
 
   protected def writeHeader(location: Int, out: StringBuilder) {
+    out.append("import ppl.delite.runtime.profiler.PerformanceTimer\n")
     out.append("import java.util.concurrent.locks._\n") //locking primitives
     ExecutableGenerator.writePath(nested.nestedGraphs(0).kernelPath, out) //package of scala kernels
     out.append("object ")
@@ -70,6 +71,9 @@ abstract class GPUNestedGenerator(nested: OP_Nested, location: Int, target: Targ
   protected def writeFunctionHeader(out: StringBuilder) {
     out.append(nested.outputType(target))
     out.append(' ')
+    // GPU nested block can only return when both condition branches are returned by GPU,
+    // meaning that the return object will be a pointer type
+    if(nested.outputType != "Unit") out.append('*')
     out.append(kernelName)
     out.append('(')
     writeInputs(out)
@@ -82,26 +86,34 @@ abstract class GPUNestedGenerator(nested: OP_Nested, location: Int, target: Targ
     val metadata = nested.getGPUMetadata(target)
 
     for ((in, sym) <- nested.getInputs) {
-      if (metadata.inputs.contains((in,sym))) {
-        if (!first) out.append(',')
-        first = false
-        out.append(metadata.inputs((in,sym)).resultType)
-        out.append("* ")
-        out.append(getSymGPU(sym))
-        if ((nested.getMutableInputs. contains (in,sym)) && (in.getConsumers.filter(_.scheduledResource!=in.scheduledResource).nonEmpty)) {
-          out.append(',')
-          out.append(getJNIType(in.outputType(sym)))
-          out.append(' ')
-          out.append(getSymCPU(sym))
-        }
-      }
-      else if (isPrimitiveType(in.outputType(sym))) {
-        if (!first) out.append(',')
-        first = false
-        out.append(getCPrimitiveType(in.outputType(sym)))
+      if (!first) out.append(',')
+      first = false
+      out.append(resultType(in,sym))
+      out.append(ref(in,sym))
+      out.append(' ')
+      out.append(getSymGPU(sym))
+      if ((nested.getMutableInputs contains (in,sym)) && (in.scheduledResource != nested.scheduledResource)) {
+        out.append(',')
+        out.append(getJNIType(in.outputType(sym)))
         out.append(' ')
-        out.append(getSymGPU(sym))
+        out.append(getSymCPU(sym))
       }
+    }
+
+    def resultType(op: DeliteOP, sym: String) = {
+      if (metadata.inputs.contains(op,sym))
+        metadata.inputs(op,sym).resultType
+      else if (isPrimitiveType(op.outputType(sym)))
+        getCPrimitiveType(op.outputType(sym))
+      else
+        error("op " + op.id + " with return type " + op.outputType + " does not have a known C type")
+    }
+
+    def ref(op: DeliteOP, sym: String) = {
+      if (isPrimitiveType(op.outputType(sym))) "&"
+      else "*"
+      //if (op.supportsTarget(target)) "*"
+      //else "&"
     }
   }
 }

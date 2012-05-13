@@ -108,15 +108,15 @@ trait QueryableOpsExp extends QueryableOps with BaseFatExp { this: OptiQLExp =>
   }
 
   def queryable_select[TSource:Manifest, TResult:Manifest](s: Rep[DataTable[TSource]], resultSelector: Rep[TSource] => Rep[TResult]) = {
-    QueryableSelect(s, resultSelector)
-    //val data = arraySelect(s.size)(i => resultSelector(s(i)))
-    //DataTable(data, data.length)
+    //QueryableSelect(s, resultSelector)
+    val data = arraySelect(s.size)(i => resultSelector(s(i)))
+    DataTable(data, data.length)
   }
   
   def queryable_where[TSource:Manifest](s: Exp[DataTable[TSource]], predicate: Exp[TSource] => Exp[Boolean]) = {
     QueryableWhere(s, predicate)
-    //val data = arrayWhere(s.size)(i => predicate(s(i)))(i => s(i))
-    //DataTable(data, data.length)
+    val data = arrayWhere(s.size)(i => predicate(s(i)))(i => s(i))
+    DataTable(data, data.length)
   }
   
   def queryable_groupby[TSource:Manifest, TKey:Manifest](s: Exp[DataTable[TSource]], keySelector: Exp[TSource] => Exp[TKey]) = {

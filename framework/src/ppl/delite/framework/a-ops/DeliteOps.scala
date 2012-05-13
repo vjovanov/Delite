@@ -2,6 +2,7 @@ package ppl.delite.framework.ops
 
 import java.io.{FileWriter, File, PrintWriter}
 
+import scala.reflect.SourceContext
 import scala.virtualization.lms.common._
 import scala.virtualization.lms.internal.{GenericCodegen, GenericFatCodegen, GenerationFailedException}
 import ppl.delite.framework.Config
@@ -73,6 +74,11 @@ trait DeliteOpsExp extends BaseFatExp with EffectExp with VariablesExp with Loop
     type OpType <: DeliteOpSingleTask[A]
     final lazy val block: Block[A] = copyTransformedBlockOrElse(_.block)(block0)
   }
+  
+  class DeliteOpSingleWithManifest[A:Manifest,R:Manifest](block0: => Block[R], requireInputs: Boolean = false) extends DeliteOpSingleTask[R](block0,requireInputs) {
+    val mA = manifest[A]
+    val mR = manifest[R]
+  }
 
   /**
    * A method call to an external library.
@@ -105,6 +111,8 @@ trait DeliteOpsExp extends BaseFatExp with EffectExp with VariablesExp with Loop
     //cond: List[Exp[Boolean]] = Nil
   ) extends Def[Unit]
   
+  //case class DeliteCollectElem[A, CA <: DeliteCollection[A]]( 
+  // functions on CA currently happen at generation-time, and are not type-checked
   case class DeliteCollectElem[A, CA/* <: DeliteCollection[A]*/]( // require to be collection subclass or not? DeliteArray isn't...
     aV: Sym[DeliteArray[A]], //TODO: array and length!
     alloc: Block[CA],
@@ -239,116 +247,15 @@ trait DeliteOpsExp extends BaseFatExp with EffectExp with VariablesExp with Loop
    *    to allocate the accumulator, and it IS used in the initial reduction.
    */
 
-  abstract class DeliteOpMapLike[A:Manifest, CA <: DeliteCollection[A]:Manifest] extends DeliteOpLoop[CA] {
-    type OpType <: DeliteOpMapLike[A,CA]
+   abstract class DeliteOpMapLike[A:Manifest, CA:Manifest] extends DeliteOpLoop[CA] {
+     type OpType <: DeliteOpMapLike[A,CA]
 
-    def alloc: Exp[CA]
-    def allocWithArray: Exp[DeliteArray[A]] => Exp[CA] = { data => val res = alloc; dc_unsafeSetData(res, data, darray_length(data)); res }
+     def alloc: Exp[CA]
+     def allocWithArray: Exp[Array[A]] => Exp[CA] = { data => val res = alloc; dc_unsafeSetData(res.asInstanceOf[Exp[DeliteCollection[A]]], data); res }
      
     //final lazy val allocVal: Exp[CA] = copyTransformedOrElse(_.allocVal)(reifyEffects(alloc))
     final lazy val aV: Sym[DeliteArray[A]] = copyTransformedOrElse(_.aV)(fresh[DeliteArray[A]]).asInstanceOf[Sym[DeliteArray[A]]]
    }
-
-  abstract class DeliteOpMapLikeStruct[A:Manifest, CA: Manifest] extends /*AbstractStruct[CA] with*/ DeliteOpLoop[CA] {
-    type OpType <: DeliteOpMapLikeStruct[A,CA]
-
-    //val size: Exp[Int]
-    //final lazy val v: Sym[Int] = copyTransformedOrElse(_.v)(fresh[Int]).asInstanceOf[Sym[Int]]
-
-    def allocWithArray: Exp[DeliteArray[A]] => Exp[CA]
-    final lazy val aV: Sym[DeliteArray[A]] = copyTransformedOrElse(_.aV)(fresh[DeliteArray[A]]).asInstanceOf[Sym[DeliteArray[A]]]
-
-    val funcBlock: Block[A]
-    val condBlock: List[Block[Boolean]]
-
-    lazy val body: Def[CA] = copyBodyOrElse(DeliteCollectElem[A,CA](aV, reifyEffects(allocWithArray(aV)), funcBlock, condBlock))
-
-    def unwrapStruct = manifest[CA] <:< manifest[Record]
-
-    /* def unwrapStruct = body match {
-      case DeliteCollectElem(_,alloc,_,_) => alloc match {
-        case Block(Def(Struct(_,_))) => true
-        case _ => false
-      }
-      case _ => false
-    } */
-
-    //TODO: copyBodyOrElse? use MapLikeLoop?
-    //TODO: can we do anything with Block(Reify)?
-    lazy val structBody = funcBlock match {
-      case Block(Def(Struct(tag, elems))) =>
-        def copyLoop[B:Manifest](func: Block[B]): Exp[DeliteArray[B]] = {
-          val aV = fresh[DeliteArray[B]] //TODO: copyTransformedOrElse??? //supplied by MapLikeLoop?
-          simpleLoop(size, v, DeliteCollectElem[B,DeliteArray[B]](aV, reifyEffects(aV), func, condBlock)) //TODO: MapLikeLoop?
-        }
-        def soa[B:Manifest](tag: List[String], elems: Map[String,Exp[Any]]): Exp[DeliteArray[B]] = {
-          val newElems = elems.map {
-            case (index, e@Def(Struct(t,es))) => (index, soa(t,es)(e.Type))
-            case (index, e) => (index, copyLoop(Block(e))(e.Type))
-          }
-          struct[DeliteArray[B]]("Array"::tag, newElems)
-        }
-        //val soa = struct[DeliteArray[A]]("Array"::tag, elems.map(p=>(p._1, copyLoop(Block(p._2))(p._2.Type)))) //TODO: nested SOA (p._2 is Struct)
-        allocWithArray(soa[A](tag,elems))
-      case _ =>
-        //simpleLoop(size, v, DeliteCollectElem(aV, reifyEffects(allocWithArray(aV)), funcBlock, condBlock))
-        allocWithArray(simpleLoop(size, v, DeliteCollectElem(aV, reifyEffects(aV), funcBlock, condBlock))) //so the loop part always returns an array
-    }
-
-    /* val body2 = manifest[CA] match {
-      case rm: RefinedManifest[ca] =>
-        def copyLoop[B:Manifest](func: Block[B]): Exp[DeliteArray[B]] = {
-          new DeliteOpMapLike {
-            val size = this.size
-            val funcBlock = func
-            val condBlock = this.condBlock
-            def allocWithArray = data => data
-          }
-        }
-        val soa = struct[DeliteArray[A]]("Array"::tag, rm.fields.map(p=>(p._1, copyLoop(field(funcBlock, p._1))(p._2))))
-      case _ =>
-    } */
-  }
-
-  abstract class DeliteOpMapStruct[A:Manifest, B:Manifest, CB:Manifest] extends DeliteOpMapLikeStruct[B,CB] {
-    type OpType <: DeliteOpMapStruct[A,B,CB]
-
-    val in: Exp[DeliteCollection[A]] //DeliteCollection must be a Record?
-    def func: Exp[A] => Exp[B]
-
-    lazy val funcBlock = reifyEffects(func(dc_apply(in,v)))
-    val condBlock = Nil
-  }
-
-  abstract class DeliteOpIndexedLoopStruct[A:Manifest, CA:Manifest] extends DeliteOpMapLikeStruct[A,CA] {
-    type OpType <: DeliteOpIndexedLoopStruct[A,CA]
-
-    def func: Exp[Int] => Exp[A]
-    lazy val funcBlock = reifyEffects(func(v))
-    val condBlock = Nil
-  }
-
-  abstract class DeliteOpFilterStruct[A:Manifest, B:Manifest, CB:Manifest] extends DeliteOpMapLikeStruct[B,CB] {
-    type OpType <: DeliteOpFilterStruct[A,B,CB]
-
-    val in: Exp[DeliteCollection[A]]
-    def func: Exp[A] => Exp[B]
-    def cond: Exp[A] => Exp[Boolean]
-
-    lazy val funcBlock = reifyEffects(func(dc_apply(in,v)))
-    lazy val condBlock = reifyEffects(cond(dc_apply(in,v)))::Nil
-  }
-
-  abstract class DeliteOpZipWithStruct[A:Manifest, B:Manifest, R:Manifest, CR:Manifest] extends DeliteOpMapLikeStruct[R,CR] {
-    type OpType <: DeliteOpZipWithStruct[A,B,R,CR]
-
-    val inA: Exp[DeliteCollection[A]]
-    val inB: Exp[DeliteCollection[B]]
-    def func: (Exp[A], Exp[B]) => Exp[R]
-
-    lazy val funcBlock = reifyEffects(func(dc_apply(inA,v), dc_apply(inB,v)))
-    val condBlock = Nil
-  }
 
   /**
    * Parallel map from DeliteCollection[A] => DeliteCollection[B]. Input functions can depend on free
@@ -361,7 +268,7 @@ trait DeliteOpsExp extends BaseFatExp with EffectExp with VariablesExp with Loop
    *               the operation is mutable; (=> DeliteCollection[B]).
    */ 
   abstract class DeliteOpMap[A:Manifest,
-                             B:Manifest, CB <: DeliteCollection[B]:Manifest]
+                             B:Manifest, CB:Manifest]
     extends DeliteOpMapLike[B,CB] {
     type OpType <: DeliteOpMap[A,B,CB]
 
@@ -370,22 +277,22 @@ trait DeliteOpsExp extends BaseFatExp with EffectExp with VariablesExp with Loop
     //val size: Exp[Int] // could be dc_size(in), but we want type-specific pattern matching to work
     def func: Exp[A] => Exp[B]
     def alloc: Exp[CB]
-
+    
     // loop
     lazy val body: Def[CB] = copyBodyOrElse(DeliteCollectElem[B, CB](
       aV = this.aV,
       alloc = reifyEffects(this.allocWithArray(aV)),
       func = reifyEffects(this.func(dc_apply(in,v)))
-      //func = reifyEffects(dc_update(allocVal,v,this.func(dc_apply(in,v))))
     ))
   }
+  
 
   /**
    *  Currently conditionally appends values to buffers, which are concatenated in the combine stage.
    *  Note that it is also implicitly a Map-Filter (it accepts a mapping function). Should this be renamed? 
    */
   abstract class DeliteOpFilter[A:Manifest,
-                                B:Manifest, CB <: DeliteCollection[B]:Manifest]
+                                B:Manifest, CB:Manifest]
     extends DeliteOpMapLike[B,CB] {
     type OpType <: DeliteOpFilter[A,B,CB]
 
@@ -421,7 +328,7 @@ trait DeliteOpsExp extends BaseFatExp with EffectExp with VariablesExp with Loop
    */
   abstract class DeliteOpZipWith[A:Manifest,
                                  B:Manifest,
-                                 R:Manifest, CR <: DeliteCollection[R]:Manifest]
+                                 R:Manifest, CR:Manifest]
     extends DeliteOpMapLike[R,CR] {
     type OpType <: DeliteOpZipWith[A,B,R,CR]
       
@@ -430,88 +337,13 @@ trait DeliteOpsExp extends BaseFatExp with EffectExp with VariablesExp with Loop
     val inB: Exp[DeliteCollection[B]]
     def func: (Exp[A], Exp[B]) => Exp[R]
     def alloc: Exp[CR]
-
+    
     // loop
     lazy val body: Def[CR] = copyBodyOrElse(DeliteCollectElem[R, CR](
       aV = this.aV,
       alloc = reifyEffects(this.allocWithArray(aV)),
       func = reifyEffects(this.func(dc_apply(inA,v), dc_apply(inB,v)))
     ))
-  }
-
-  abstract class DeliteOpReduceLikeStruct[A:Manifest] extends DeliteOpLoop[A] {
-    type OpType <: DeliteOpReduceLikeStruct[A]
-
-    //val size: Exp[Int]
-    //final val v: Sym[Int] = copyTransformedOrElse(_.v)(fresh[Int]).asInstanceOf[Sym[Int]]
-    final lazy val rV: (Sym[A], Sym[A]) = zeroBlock match { //TODO: is this the best way?
-      case Block(Def(Struct(tag, elems))) => //for A <: Struct, we can't simply make a fresh[A] since we want to unwrap A
-        //TODO: copyOrElse
-        (struct[A](tag, elems.map(p=>(p._1, fresh(p._2.Type)))).asInstanceOf[Sym[A]], struct[A](tag, elems.map(p=>(p._1, fresh(p._2.Type)))).asInstanceOf[Sym[A]])
-      case _ => copyOrElse(_.rV)((reflectMutableSym(fresh[A]), fresh[A]))
-    }
-
-    val mutable: Boolean = false
-    val stripFirst: Boolean = !isPrimitiveType(manifest[A]) && !mutable
-
-    val funcBlock: Block[A]
-    val condBlock: List[Block[Boolean]] = Nil
-    val zeroBlock: Block[A]
-    val rFuncBlock: Block[A]
-
-    lazy val body: Def[A] = copyBodyOrElse(DeliteReduceElem[A](funcBlock, condBlock, zeroBlock, rV, rFuncBlock, stripFirst))
-
-    def unwrapStruct = rFuncBlock match {
-      case Block(Def(Struct(_,_))) => true
-      case  _ => false
-    }
-
-    lazy val structBody = funcBlock match {
-      case Block(f @ Def(Struct(_,_))) => rFuncBlock match {
-        case Block(r @ Def(Struct(rTag,rElems))) => zeroBlock match {
-          case Block(z @ Def(Struct(_,_))) => rV match {
-            case (rv1 @ Def(Struct(_,_)), rv2 @ Def(Struct(_,_))) =>
-              def copyLoop[B:Manifest](index: String): Exp[B] = {
-                simpleLoop(size, v, DeliteReduceElem[B](
-                  func = Block(field[B](f,index)),
-                  cond = condBlock,
-                  zero = Block(field[B](z,index)),
-                  rV = (field[B](rv1,index).asInstanceOf[Sym[B]], field[B](rv2,index).asInstanceOf[Sym[B]]),
-                  rFunc = Block(field[B](r,index)),
-                  stripFirst = this.stripFirst
-                ))
-              }
-              struct[A](rTag, rElems.map(p=>(p._1, copyLoop(p._1)(p._2.Type))))
-          }
-        }
-      }
-    }
-
-  }
-
-  abstract class DeliteOpReduceStruct[A:Manifest] extends DeliteOpReduceLikeStruct[A] {
-    type OpType <: DeliteOpReduceStruct[A]
-
-    val in: Exp[DeliteCollection[A]]
-    def zero: Exp[A]
-    def func: (Exp[A], Exp[A]) => Exp[A]
-
-    lazy val funcBlock = reifyEffects(dc_apply(in,v))
-    lazy val zeroBlock = reifyEffects(zero)
-    lazy val rFuncBlock = reifyEffects(func(rV._1, rV._2))
-  }
-
-  abstract class DeliteOpMapReduceStruct[A:Manifest,R:Manifest] extends DeliteOpReduceLikeStruct[R] {
-    type OpType <: DeliteOpMapReduceStruct[A,R]
-
-    val in: Exp[DeliteCollection[A]]
-    def zero: Exp[R]
-    def map: Exp[A] => Exp[R]
-    def reduce: (Exp[R], Exp[R]) => Exp[R]
-
-    lazy val funcBlock = reifyEffects(map(dc_apply(in,v)))
-    lazy val zeroBlock = reifyEffects(zero)
-    lazy val rFuncBlock = reifyEffects(reduce(rV._1, rV._2))
   }
   
   abstract class DeliteOpReduceLike[A:Manifest] extends DeliteOpLoop[A] {
@@ -598,7 +430,7 @@ trait DeliteOpsExp extends BaseFatExp with EffectExp with VariablesExp with Loop
       rFunc = reifyEffects(reduce(rV._1, rV._2)),
       stripFirst = !isPrimitiveType(manifest[R]) && !this.mutable
     ))
-  }
+  }  
 
   // for sumIf ...
 /*
@@ -706,7 +538,7 @@ trait DeliteOpsExp extends BaseFatExp with EffectExp with VariablesExp with Loop
       stripFirst = !isPrimitiveType(manifest[R]) && !this.mutable
     ))
   }
-
+  
   // reduce tuple in parallel, return first component
   abstract class DeliteOpZipWithReduceTuple[A:Manifest,B:Manifest,R:Manifest,Q:Manifest]
     extends DeliteOpLoop[R] {
@@ -731,9 +563,7 @@ trait DeliteOpsExp extends BaseFatExp with EffectExp with VariablesExp with Loop
       rFuncSeq = /*reifyEffects*/(reduce(rV._1, rV._2)),  //FIXME: tupled reify
       stripFirst = (!isPrimitiveType(manifest[R]) || !isPrimitiveType(manifest[R])) && !this.mutable
     ))
-  }
-
-
+  }  
 
   /**
    * Parallel foreach from DeliteCollection[A] => Unit. Input functions must specify any free variables that it
@@ -758,7 +588,7 @@ trait DeliteOpsExp extends BaseFatExp with EffectExp with VariablesExp with Loop
       sync = reifyEffects(this.sync(i))
     ))
   }
-  
+
   abstract class DeliteOpIndexedLoop extends DeliteOpLoop[Unit] {
     type OpType <: DeliteOpIndexedLoop
     val size: Exp[Int]
@@ -769,7 +599,7 @@ trait DeliteOpsExp extends BaseFatExp with EffectExp with VariablesExp with Loop
       sync = reifyEffects(unit(List()))
     ))
   }
-  
+    
   /**
    * Deprecated Delite ops  
    */
@@ -791,7 +621,7 @@ trait DeliteOpsExp extends BaseFatExp with EffectExp with VariablesExp with Loop
       implicit val mA: Manifest[A] = v.Type.asInstanceOf[Manifest[A]]
       reifyEffects {
         var index = var_new(unit(0))
-        var vs = var_new(unit(null).asInstanceOfL[A])
+        var vs = var_new(unit(null).AsInstanceOf[A])
         while (index < in.size) {
           vs = in(index)
           rebind(v.asInstanceOf[Sym[A]], ReadVar(vs))
@@ -816,26 +646,6 @@ trait DeliteOpsExp extends BaseFatExp with EffectExp with VariablesExp with Loop
 
 
   
-  ////////////////////////////
-  // structs
-
-  override def field[T:Manifest](struct: Rep[Record], index: String): Rep[T] = struct match {
-    case Def(m: DeliteOpMapLikeStruct[a,ca]) if (m.unwrapStruct) =>
-      field(m.structBody, index)
-    case Def(r: DeliteOpReduceLikeStruct[a]) if (r.unwrapStruct) =>
-      field(r.structBody, index)
-    case _ => super.field(struct, index)
-  }
-
-  override def unapplyStruct[T](d: Def[T]) = d match {
-    case m: DeliteOpMapLikeStruct[_,T] if (m.unwrapStruct) => m.structBody match {
-      case Def(body) => unapplyStruct(body)
-    }
-    case r: DeliteOpReduceLikeStruct[T] if (r.unwrapStruct) => r.structBody match {
-      case Def(body) => unapplyStruct(body)
-    }
-    case _ => super.unapplyStruct(d)
-  }
 
   ///////////////////////////
   // effects + other helpers
@@ -884,7 +694,7 @@ trait DeliteOpsExp extends BaseFatExp with EffectExp with VariablesExp with Loop
 
   // alternative: leave reflectPure as above and override toAtom...
 
-  def reflectPure[A:Manifest](d: Def[A]): Exp[A] = d match {
+  def reflectPure[A:Manifest](d: Def[A])(implicit ctx: SourceContext): Exp[A] = d match {
     case x: DeliteOpLoop[_] =>
       val mutableInputs = readMutableData(d) //TODO: necessary or not??
       //val mutableInputs = Nil // readMutableData(d) TODO: necessary or not??
@@ -904,7 +714,7 @@ trait DeliteOpsExp extends BaseFatExp with EffectExp with VariablesExp with Loop
   // TBD: move logic from reflectPure (above) into reflectEffect?
 
   // HACK lazy val bites again: must make sure that block is evaluated!
-  override def reflectEffect[A:Manifest](d: Def[A], u: Summary): Exp[A] = d match {
+  override def reflectEffect[A:Manifest](d: Def[A], u: Summary)(implicit ctx: SourceContext): Exp[A] = d match {
     case x: DeliteOpSingleTask[_] =>
       x.block
       super.reflectEffect(d,u)
@@ -1126,7 +936,7 @@ trait DeliteOpsExp extends BaseFatExp with EffectExp with VariablesExp with Loop
 
 
 
-trait BaseGenDeliteOps extends BaseGenLoopsFat with LoopFusionOpt with BaseGenStaticData{
+trait BaseGenDeliteOps extends BaseGenLoopsFat with LoopFusionOpt with BaseGenStaticData {
   val IR: DeliteOpsExp
   import IR._
 
@@ -1866,7 +1676,7 @@ trait ScalaGenDeliteOps extends ScalaGenLoopsFat with ScalaGenStaticDataDelite w
             if (isPrimitiveType(sym.Type)) {
               stream.println("__act2." + quote(sym) + " = " + "__act2." + quote(sym) + "_zero")
             } else {
-              stream.println("__act2." + quote(sym) + " = " + "__act2." + quote(sym) + "_zero.cloneL") // separate zero buffer
+              stream.println("__act2." + quote(sym) + " = " + "__act2." + quote(sym) + "_zero.Clone") // separate zero buffer
             }
             emitReduceElem(op, sym, elem, "__act2.")
           }
@@ -1974,7 +1784,7 @@ trait ScalaGenDeliteOps extends ScalaGenLoopsFat with ScalaGenStaticDataDelite w
       case (sym, elem: DeliteCollectElem[_,_]) => //FIXME: get rid of .data and adapt to new alloc style
         if (elem.cond.nonEmpty) {
           //calculate start offset from rhs.offset + rhs.size
-          stream.println("if (__act." + quote(sym) + "_data ne __act." + quote(sym) + "_buf)")
+          //stream.println("if (__act." + quote(sym) + "_data ne __act." + quote(sym) + "_buf)")
           stream.println("System.arraycopy(__act." + quote(sym) + "_buf, 0, __act." + quote(sym) + "_data, __act." + quote(sym) + "_offset, __act." + quote(sym) + "_size)")
           stream.println("__act." + quote(sym) + "_buf = null")
         }
@@ -2149,8 +1959,7 @@ trait CudaGenDeliteOps extends CudaGenLoopsFat with BaseGenDeliteOps {
 
   override def emitFatNode(symList: List[Sym[Any]], rhs: FatDef)(implicit stream: PrintWriter) = rhs match {
     case op: AbstractFatLoop =>
-      if (forceParallel) emitKernelAbstractFatLoop2(op, symList)
-      else if (deliteKernel) emitKernelAbstractFatLoop(op, symList)
+      if (deliteKernel) emitKernelAbstractFatLoop(op, symList)
       else emitInlineAbstractFatLoop(op, symList)
     case _ => super.emitFatNode(symList, rhs)
   }
@@ -2161,32 +1970,12 @@ trait CudaGenDeliteOps extends CudaGenLoopsFat with BaseGenDeliteOps {
       case elem: DeliteForeachElem[_] => List(elem.func) 
       case elem: DeliteReduceElem[_] => elem.func :: elem.cond
       case elem: DeliteReduceTupleElem[_,_] => elem.func._1 :: elem.func._2 :: elem.cond
-      case _ => throw new GenerationFailedException("CudaGen: ReduceTupleElem is not supported yet.")
+      case _ => throw new GenerationFailedException("CudaGen: Unsupported Elem Type!")
     }
-    //println("starting to call emitFatBlock in emitMultiLoopFuncs")
     emitFatBlock(elemFuncs)
-    //println("finished calling emitFatBlock in emitMultiLoopsFuncs")
   }
 
-  def emitCollectElem(op: AbstractFatLoop, sym: Sym[Any], elem: DeliteCollectElem[_,_], prefixSym: String = "")(implicit stream: PrintWriter) {
-    if (elem.cond.nonEmpty) {
-      throw new GenerationFailedException("CudaGen: emitCollectElem with condition (filter) is not supported yet.")
-      /*
-      if (deliteKernel)
-        stream.println(prefixSym + quote(sym) + "_buf_append(" + quote(getBlockResult(elem.func)) + ")")
-      else
-        stream.println(prefixSym + quote(sym) + ".insert(" + prefixSym + quote(sym) + ".length, " + quote(getBlockResult(elem.func)) + ")")
-      */
-    } 
-    else {
-      stream.println(prefixSym + quote(sym) + ".dcUpdate(" + quote(op.v) + ", " + quote(getBlockResult(elem.func)) + "); // emitCollectElem")
-    }
-  }
-  
-  def emitForeachElem(op: AbstractFatLoop, sym: Sym[Any], elem: DeliteForeachElem[_])(implicit stream: PrintWriter) {
-    stream.println(quote(getBlockResult(elem.func)))
-  }
-  
+  /*
   def emitFirstReduceElem(op: AbstractFatLoop, sym: Sym[Any], elem: DeliteReduceElem[_], prefixSym: String = "")(implicit stream: PrintWriter) {
       if (elem.cond.nonEmpty) {
         stream.println("if (" + elem.cond.map(c=>quote(getBlockResult(c))).mkString(" && ") + ") {")
@@ -2199,6 +1988,7 @@ trait CudaGenDeliteOps extends CudaGenLoopsFat with BaseGenDeliteOps {
         stream.println(quote(getBlockResult(elem.func)))        
       }
   }
+  */
 
   def emitReduceElem(op: AbstractFatLoop, sym: Sym[Any], elem: DeliteReduceElem[_], prefixSym: String = "")(implicit stream: PrintWriter) {
     if (elem.cond.nonEmpty){
@@ -2207,11 +1997,10 @@ trait CudaGenDeliteOps extends CudaGenLoopsFat with BaseGenDeliteOps {
       stream.println("}")
     }
     else {
-      //println("before")
       emitReduction(op, sym, elem, prefixSym)
-      //println("after red")
     }
   }
+
  def emitReduceTupleElem(op: AbstractFatLoop, sym: Sym[Any], elem: DeliteReduceTupleElem[_,_], prefixSym: String = "")(implicit stream: PrintWriter) {
     if (elem.cond.nonEmpty){
       sys.error("tuple reduce with external conditions not implemented!")
@@ -2220,20 +2009,6 @@ trait CudaGenDeliteOps extends CudaGenLoopsFat with BaseGenDeliteOps {
       emitReductionTuple(op, sym, elem, prefixSym)
     }
   }
-/*
-  def emitInitializeOrReduction(op: AbstractFatLoop, sym: Sym[Any], elem: DeliteReduceElem[_], prefixSym: String = "")(implicit stream: PrintWriter) {
-    stream.println("// TODO: we could optimize this check away with more convoluted runtime support if necessary")          
-    stream.println("if (" + prefixSym + quote(sym) + " == " + prefixSym + quote(sym) + "_zero" + ") " + prefixSym + quote(sym) + " = {")
-    
-    // initialize
-    stream.println(quote(getBlockResult(elem.func)))
-    stream.println("}")
-    // or reduce
-    stream.println("else {")
-    emitReduction(op, sym, elem, prefixSym)
-    stream.println("}")
-  } 
-  */
 
   def emitReduction(op: AbstractFatLoop, sym: Sym[Any], elem: DeliteReduceElem[_], prefixSym: String = "")(implicit stream: PrintWriter) {
     stream.println("%s %s = %s;".format(remap(elem.rV._1.Type),quote(elem.rV._1),prefixSym+quote(sym)))
@@ -2256,250 +2031,134 @@ trait CudaGenDeliteOps extends CudaGenLoopsFat with BaseGenDeliteOps {
   }
 
   def emitInlineAbstractFatLoop(op: AbstractFatLoop, symList: List[Sym[Any]])(implicit stream: PrintWriter) {
-    forceParallel = false
     (symList zip op.body) foreach {
       //TODO: Check if primitive type operations
       case (sym, elem: DeliteCollectElem[_,_]) =>
-        throw new GenerationFailedException("CudaGen: Inlined DeliteCollectElem is not supported yet due to memory allocations.")
-      case (sym, elem: DeliteForeachElem[_]) => 
-        throw new GenerationFailedException("CudaGen: Inlined DeliteForeachElem is not supported yet due to memory allocations.")
-        //TODO: Why do we need this?
-        //stream.println("var " + quotearg(sym) + " = ()") // must be type Unit
+        emitBlock(elem.alloc) //This will generate alloc failure exception
+        throw new GenerationFailedException("CudaGen: Inlined DeliteCollectElem is not supported yet due to memory allocations.\n" + quotePos(sym))
       case (sym, elem: DeliteReduceElem[_]) =>
-        val (zeroFunc,freeVars) = emitDevFunc(elem.zero, List())
-        if(freeVars.length == 0)
-          stream.println("%s %s = %s();".format(remap(sym.Type),quote(sym),zeroFunc))
-        else
-          stream.println("%s %s = %s(%s);".format(remap(sym.Type),quote(sym),zeroFunc,freeVars))
+        emitBlock(elem.zero)
+        stream.println("%s %s = %s;".format(remap(elem.zero.Type),quote(sym),quote(getBlockResult(elem.zero))))
       case (sym, elem: DeliteReduceTupleElem[_,_]) =>
-        val (zeroFunc_1,freeVars_1) = emitDevFunc(elem.zero._1, List())
-        if(freeVars_1.length == 0)
-          stream.println("%s %s = %s();".format(remap(elem.zero._1.Type),quote(sym),zeroFunc_1))
-        else
-          stream.println("%s %s = %s(%s);".format(remap(elem.zero._1.Type),quote(sym),zeroFunc_1,freeVars_1))
-        val (zeroFunc_2,freeVars_2) = emitDevFunc(elem.zero._2, List())
-        if(freeVars_2.length == 0)
-          stream.println("%s %s_2 = %s();".format(remap(elem.zero._2.Type),quote(sym),zeroFunc_2))
-        else
-          stream.println("%s %s_2 = %s(%s);".format(remap(elem.zero._2.Type),quote(sym),zeroFunc_2,freeVars_2))
+        emitFatBlock(List(elem.zero._1,elem.zero._2))
+        stream.println("%s %s = %s;".format(remap(elem.zero._1.Type),quote(sym),quote(getBlockResult(elem.zero._1))))
+        stream.println("%s %s_2 = %s;".format(remap(elem.zero._2.Type),quote(sym),quote(getBlockResult(elem.zero._2))))
       case _ =>
-        throw new GenerationFailedException("CudaGen: emitCollectElem with condition (filter) is not supported yet." + symList.map(quote).mkString(""))
+        throw new GenerationFailedException("CudaGen: Unsupported Elem Type!")
     }
     stream.println("int " + quote(op.v) + " = 0;")
-
-        /*
-    if (op.body exists (loopBodyNeedsStripFirst _)) {
-      stream.println("if (" + quote(op.size) + " > 0) { // prerun fat loop " + symList.map(quote).mkString(","))
-      emitMultiLoopFuncs(op, symList)
-      (symList zip op.body) foreach {
-        case (sym, elem: DeliteCollectElem[_,_]) =>
-          emitCollectElem(op, sym, elem)
-        case (sym, elem: DeliteForeachElem[_]) => 
-          stream.println(quote(sym) + " = {")
-          emitForeachElem(op, sym, elem)
-          stream.println("}")
-        case (sym, elem: DeliteReduceElem[_]) =>
-          if (elem.stripFirst) {
-            stream.println(quote(sym) + " = {")
-            emitFirstReduceElem(op, sym, elem)
-            stream.println("}")
-          }
-          else {
-            emitReduceElem(op, sym, elem)
-          }
-      }
-      stream.println("}")
-      stream.println(quote(op.v) + " = 1;")
-    }
-  */
-
     stream.println("while (" + quote(op.v) + " < " + quote(op.size) + ") {  // begin fat loop " + symList.map(quote).mkString(","))
     // body
     emitMultiLoopFuncs(op, symList)
     (symList zip op.body) foreach {
-      case (sym, elem: DeliteCollectElem[_,_]) =>
-        stream.println("//start emitCollectElem")
-      case (sym, elem: DeliteForeachElem[_]) =>
-        stream.println("//start emitForeachElem")
       case (sym, elem: DeliteReduceElem[_]) =>
         stream.println("//start emitReduceElem")
         emitReduceElem(op, sym, elem)
+        stream.println("//end emitReduceElem")
       case (sym, elem: DeliteReduceTupleElem[_,_]) =>
         stream.println("//start emitReduceTupleElem")
         emitReduceTupleElem(op, sym, elem)
+        stream.println("//end emitReduceTupleElem")
       case _ =>
-        throw new GenerationFailedException("CudaGen: emitCollectElem with condition (filter) is not supported yet.")
+        throw new GenerationFailedException("CudaGen: Unsupported Elem Type!")
     }
     stream.println(quote(op.v) + " += 1;")
     stream.println(/*{*/"} // end fat loop " + symList.map(quote).mkString(","))
   }
 
   def emitKernelAbstractFatLoop(op: AbstractFatLoop, symList: List[Sym[Any]])(implicit stream: PrintWriter) {
-    //if(symList.length != 1) throw new GenerationFailedException("CudaGen: Only 1 output is supported for FatLoop (No fusing yet).")
-
-    //println("Entering emitKernelFatLoop")
-
-    val serializeLoop = {
-      (symList.length==1) && (op.body(0).isInstanceOf[DeliteReduceElem[_]]) //&& (!isPrimitiveType(op.body(0).asInstanceOf[DeliteReduceElem[_]].zero.Type))
-    }
-
-    if(serializeLoop) {
-      //println("//serializing the loop " + quote(symList(0)))
-      forceParallel = true
-      stream.println("for (int %s = 0; %s < %s; %s++) {\n".format(quote(op.v),quote(op.v),quote(op.size),quote(op.v)))
-      //println("1, before emitMultiLoopsFuncs:  size is " + symList.length)
-      emitMultiLoopFuncs(op, symList)
-      //println("1, after emitMultiLoopsFuncs")
-    }
-    else {
-      currDim += 1
-      val currDimStr = getCurrDimStr()
-      setCurrDimLength(quote(op.size))
-      stream.println(addTab()+"int %s = %s;".format(quote(op.v),currDimStr))
-      //optimizer.registerAlias(currDimStr,quote(op.v))
-      stream.println(addTab()+"if( %s < %s ) {".format(quote(op.v), quote(op.size)))
-      tabWidth += 1
-      forceParallel = false
-      emitMultiLoopFuncs(op, symList)
-    }
-      (symList zip op.body) foreach {
-        case (sym, elem:DeliteCollectElem[_,_]) =>
-          emitAllocFunc(sym,elem.alloc)
-          stream.println(addTab()+"%s.dcUpdate(%s, %s);".format(quote(sym),quote(op.v),quote(getBlockResult(elem.func))))
-          //val (loopFunc,freeVars) = emitDevFunc(elem.func, List(op.v))
-          //if(freeVars.length==0) {
-          //  stream.println(addTab()+"%s.dcUpdate(%s, %s(%s));".format(quote(sym),currDimStr,loopFunc,currDimStr))
-          //}
-          //else {
-          //  stream.println(addTab()+"%s.dcUpdate(%s, %s(%s,%s));".format(quote(sym),currDimStr,loopFunc,currDimStr,freeVars.map(quote).mkString(",")))
-          //}
-        case (sym, elem:DeliteForeachElem[_]) =>
-          //val (loopFunc,freeVars) = emitDevFunc(elem.func, List(op.v))
-          //if(freeVars.length==0)
-          //  stream.println(addTab()+"%s(%s);".format(loopFunc,currDimStr))
-          //else
-          //  stream.println(addTab()+"%s(%s,%s);".format(loopFunc,currDimStr,freeVars.map(quote).mkString(",")))
-        case (sym, elem: DeliteReduceElem[_]) =>
-          if(isPrimitiveType(elem.zero.Type)) throw new GenerationFailedException("CudaGen: DeliteReduceElem is not supported yet.")
-          val isAliased = checkAlias(getBlockResultFull(elem.zero))
-          assert(getBlockResult(elem.zero).isInstanceOf[Sym[Any]])
-          if(!isAliased) emitAllocFunc(getBlockResult(elem.zero).asInstanceOf[Sym[Any]],elem.zero)
-          else stream.println("%s %s_zero = %s;".format(remap(sym.Type),quote(sym),quote(getBlockResult(elem.zero))))
-          emitCloneFunc(sym,getBlockResult(elem.zero).asInstanceOf[Sym[_]])
-          emitReduceElem(op, sym, elem)
-        case _ =>
-          throw new GenerationFailedException("CudaGen: DeliteReduceTupleElem is not supported yet.")
-    }
-    tabWidth -= 1
-    stream.println(addTab()+"}")
-    currDim -= 1
-  }
-
-  def emitKernelAbstractFatLoop2(op: AbstractFatLoop, symList: List[Sym[Any]])(implicit stream: PrintWriter) {
-    //if(symList.length != 1) throw new GenerationFailedException("CudaGen: Only 1 output is supported for FatLoop (No fusing yet).")
-    //println("Entering emitKernelAbstractFatLoop2 ")
-
-    forceParallel = false
-
-    val serializeLoop = {
-      (symList.length==1) && (op.body(0).isInstanceOf[DeliteReduceElem[_]]) //&& (!isPrimitiveType(op.body(0).asInstanceOf[DeliteReduceElem[_]].zero.Type))
-    }
-
-    if(serializeLoop) {
-      throw new GenerationFailedException("CudaGen: Nested serialize is not supported yet.")
-    }
-
-    currDim += 1
-    val currDimStr = getCurrDimStr()
-    setCurrDimLength(quote(op.size))
-    stream.println(addTab()+"int %s = %s;".format(quote(op.v),currDimStr))
-    //optimizer.registerAlias(currDimStr,quote(op.v))
-    stream.println(addTab()+"if( %s < %s ) {".format(quote(op.v), quote(op.size)))
     tabWidth += 1
-    emitMultiLoopFuncs(op, symList)
-
-    //println("entering foreach in 2")
-    //println("How many? : " + symList.length)
-    (symList zip op.body) foreach {
-      case (sym, elem:DeliteCollectElem[_,_]) =>
-        //println("in 2, collect" + quote(sym))
-        emitAllocFunc(sym,elem.alloc)
-        stream.println(addTab()+"%s.dcUpdate(%s, %s);".format(quote(sym),quote(op.v),quote(getBlockResult(elem.func))))
-        //val (loopFunc,freeVars) = emitDevFunc(elem.func, List(op.v))
-        //if(freeVars.length==0) {
-        //  stream.println(addTab()+"%s.dcUpdate(%s, %s(%s));".format(quote(sym),currDimStr,loopFunc,currDimStr))
-        //}
-        //else {
-        //  stream.println(addTab()+"%s.dcUpdate(%s, %s(%s,%s));".format(quote(sym),currDimStr,loopFunc,currDimStr,freeVars.map(quote).mkString(",")))
-        //}
-      case (sym, elem:DeliteForeachElem[_]) =>
-        //println("int 2, foreach")
-        //val (loopFunc,freeVars) = emitDevFunc(elem.func, List(op.v))
-        //if(freeVars.length==0)
-        //  stream.println(addTab()+"%s(%s);".format(loopFunc,currDimStr))
-        //else
-        //  stream.println(addTab()+"%s(%s,%s);".format(loopFunc,currDimStr,freeVars.map(quote).mkString(",")))
-      case (sym, elem: DeliteReduceElem[_]) =>
-        //println("in 2, reduce")
-        if(isPrimitiveType(elem.zero.Type)) throw new GenerationFailedException("CudaGen: DeliteReduceElem is not supported yet.")
-        val isAliased = checkAlias(getBlockResultFull(elem.zero))
-        assert(getBlockResult(elem.zero).isInstanceOf[Sym[Any]])
-        if(!isAliased) { println("calling emitAllocfunc with sym:" + quote(getBlockResult(elem.zero))); emitAllocFunc(getBlockResult(elem.zero).asInstanceOf[Sym[Any]],elem.zero)  }
-        else stream.println("%s %s_zero = %s;".format(remap(sym.Type),quote(sym),quote(getBlockResult(elem.zero))))
-        //println("calling clone with sym : " + quote(sym))
-        emitCloneFunc(sym,getBlockResult(elem.zero).asInstanceOf[Sym[Any]])
-        emitReduceElem(op, sym, elem)
-      case _ =>
-        throw new GenerationFailedException("CudaGen: DeliteReduceTupleElem is not supported yet.")
+    def funcNameSuffix(sym: Sym[Any]) = {
+      symList.map(quote).mkString("")+"_"+quote(sym)
     }
-    //println("finished foreach in 2")
-    tabWidth -= 1
-    stream.println(addTab()+"}")
-    currDim -= 1
-    forceParallel = true
-  }
+  
+    (symList zip op.body) foreach {
+        case (sym, elem:DeliteCollectElem[_,_]) =>
+          val lf = metaData.loopFuncs.getOrElse(sym,new LoopFunc)
+          metaData.loopFuncs.put(sym,lf)
+          lf.tpe = "COLLECT"
 
-  def checkAlias(exp: Exp[Any]): Boolean = {
-    false
+          if(elem.cond.nonEmpty) {
+            emitAllocFunc(sym,elem.alloc,elem.aV,null)
+            lf.loopFuncInputs = emitMultiLoopFunc(elem.func, "collect_"+funcNameSuffix(sym), List(op.v), stream)
+            emitMultiLoopCond(sym, elem.cond, op.v, "cond_"+funcNameSuffix(sym), stream)
+          }
+          else {
+            emitAllocFunc(sym,elem.alloc,elem.aV,op.size)
+            lf.loopFuncInputs = emitMultiLoopFunc(elem.func, "collect_"+funcNameSuffix(sym), List(op.v), stream)
+          }
+          lf.loopFuncOutputType = remap(getBlockResult(elem.func).Type)
+
+        //TODO: Handle when synclist exists!
+        case (sym, elem:DeliteForeachElem[_]) =>
+          metaData.outputs.put(sym,new TransferFunc)
+          val lf = metaData.loopFuncs.getOrElse(sym,new LoopFunc)
+          metaData.loopFuncs.put(sym,lf)
+          lf.tpe = "FOREACH"
+          lf.loopFuncInputs = emitMultiLoopFunc(elem.func, "foreach_"+funcNameSuffix(sym), List(op.v), stream)
+          lf.loopFuncOutputType = remap(getBlockResult(elem.func).Type)
+
+        case (sym, elem: DeliteReduceElem[_]) =>
+          val lf = metaData.loopFuncs.getOrElse(sym,new LoopFunc)
+          metaData.loopFuncs.put(sym,lf)
+          lf.tpe = "REDUCE"
+
+          lf.loopFuncInputs = emitMultiLoopFunc(elem.func, "collect_"+funcNameSuffix(sym), List(op.v), stream)
+          lf.loopReduceInputs = emitMultiLoopFunc(elem.rFunc, "reduce_"+funcNameSuffix(sym), List(elem.rV._1, elem.rV._2, op.v), stream)
+          lf.loopZeroInputs = emitMultiLoopFunc(elem.zero,"zero_"+funcNameSuffix(sym), Nil, stream)
+          if(!isPrimitiveType(sym.Type)) {
+            printDebug(sym, "DeliteReduceElem with non-primitive types is not supported.")
+          } else {
+            emitAllocFuncPrimitive(sym)
+          }
+          lf.loopFuncOutputType = remap(getBlockResult(elem.func).Type)
+          if(elem.cond.nonEmpty) emitMultiLoopCond(sym, elem.cond, op.v, "cond_"+funcNameSuffix(sym), stream)
+
+        case (sym, elem: DeliteReduceTupleElem[_,_]) =>
+          val lf = metaData.loopFuncs.getOrElse(sym,new LoopFunc)
+          metaData.loopFuncs.put(sym,lf)
+          lf.tpe = "REDUCE_TUPLE"
+
+          lf.loopFuncInputs = emitMultiLoopFunc(elem.func._1, "collect_1_"+funcNameSuffix(sym), List(op.v), stream)
+          lf.loopFuncInputs_2 = emitMultiLoopFunc(elem.func._2, "collect_2_"+funcNameSuffix(sym), List(op.v), stream)
+          lf.loopReduceInputs = emitMultiLoopFunc(elem.rFuncSeq._1, "reduce_seq_1_"+funcNameSuffix(sym), List(elem.rVSeq._1._1, elem.rVSeq._1._2, elem.rVSeq._2._1, elem.rVSeq._2._2, op.v), stream)
+          lf.loopReduceInputs_2 = emitMultiLoopFunc(elem.rFuncSeq._2, "reduce_seq_2_"+funcNameSuffix(sym), List(elem.rVSeq._1._1, elem.rVSeq._1._2, elem.rVSeq._2._1, elem.rVSeq._2._2, op.v), stream)
+          lf.loopReduceParInputs = emitMultiLoopFunc(elem.rFuncPar._1, "reduce_par_1_"+funcNameSuffix(sym), List(elem.rVPar._1._1, elem.rVPar._1._2, elem.rVPar._2._1, elem.rVPar._2._2, op.v), stream)
+          lf.loopReduceParInputs_2 = emitMultiLoopFunc(elem.rFuncPar._2, "reduce_par_2_"+funcNameSuffix(sym), List(elem.rVPar._1._1, elem.rVPar._1._2, elem.rVPar._2._1, elem.rVPar._2._2, op.v), stream)
+          lf.loopZeroInputs = emitMultiLoopFunc(elem.zero._1,"zero_1_"+funcNameSuffix(sym), Nil, stream)
+          lf.loopZeroInputs_2 = emitMultiLoopFunc(elem.zero._2,"zero_2_"+funcNameSuffix(sym), Nil, stream)
+          if(!isPrimitiveType(sym.Type)) {
+            printDebug(sym, "DeliteReduceTupleElem with non-primitive types is not supported.")
+          } else {
+            emitAllocFuncPrimitive(sym)
+          }
+          lf.loopFuncOutputType = remap(getBlockResult(elem.func._1).Type)
+          lf.loopFuncOutputType_2 = remap(getBlockResult(elem.func._2).Type)
+          if(elem.cond.nonEmpty) emitMultiLoopCond(sym, elem.cond, op.v, "cond_"+funcNameSuffix(sym), stream)
+          
+        case _ =>
+          throw new GenerationFailedException("CudaGen: Unsupported Elem type!")
+    }
+    tabWidth -= 1
+    isGPUable = true
   }
 
   override def emitNode(sym: Sym[Any], rhs: Def[Any])(implicit stream: PrintWriter) = rhs match {
     case s:DeliteOpSingleTask[_] => {
-      val save = deliteKernel
       val b = s.block
-      if (!save) {
-        val (singleFunc, freeVars) = emitDevFunc(b,List())
-        //val currDimStr = getCurrDimStr()
-        stream.println(addTab()+"%s %s = %s(%s);".format(remap(sym.Type),quote(sym),singleFunc,freeVars.map(quote).mkString(",")))
+      if (!deliteKernel) {  //In the process of generating operations for deliteKernel type kernels (allow SingleTask to be inlined)
+        emitBlock(b)
+        if(!isVoidType(sym.Type)) stream.println(addTab() + "%s %s = %s;".format(remap(sym.Type),quote(sym),quote(getBlockResult(b))))
       }
       else {
-    	throw new GenerationFailedException("CudaGen: DeliteOpSingleTask is not GPUable." + quote(sym))
+    	  throw new GenerationFailedException("CudaGen: DeliteOpSingleTask is not GPUable")
       }
     }
     
     case op: AbstractLoop[_] => 
       // TODO: we'd like to always have fat loops but currently they are not allowed to have effects
       stream.println("// a *thin* loop follows: " + quote(sym))
-      stream.println("//here comes")
       emitFatNode(List(sym), SimpleFatLoop(op.size, op.v, List(op.body)))
-      stream.println("//here comes done")
-
-    case foreach:DeliteOpForeach2[_,_] => {
-      if(!isPrimitiveType(foreach.v.Type)) throw new GenerationFailedException("CudaGen: Only primitive Types are allowed for input of foreach.")
-      currDim += 1
-      setCurrDimLength(quote(foreach.in)+"->size()")
-      val currDimStr = getCurrDimStr()
-      stream.println(addTab()+"if( %s < %s ) {".format(currDimStr,quote(foreach.in)+".size()"))
-      tabWidth += 1
-      val (foreachFunc,freeVars) = emitDevFunc(foreach.func, List(foreach.v))
-      if(freeVars.length==0)
-        stream.println(addTab()+"%s(%s.dcApply(%s));".format(foreachFunc,quote(foreach.in),currDimStr))
-      else
-        stream.println(addTab()+"%s(%s.dcApply(%s),%s);".format(foreachFunc,quote(foreach.in),currDimStr,freeVars.map(quote).mkString(",")))
-      tabWidth -= 1
-      stream.println(addTab()+"}")
-      currDim -= 1
-    }
 
     case _ => super.emitNode(sym,rhs)
   }
@@ -2511,43 +2170,39 @@ trait OpenCLGenDeliteOps extends OpenCLGenEffect with BaseGenDeliteOps {
 
   override def emitFatNode(symList: List[Sym[Any]], rhs: FatDef)(implicit stream: PrintWriter) = rhs match {
     case op: AbstractFatLoop =>
-      if (forceParallel) emitKernelAbstractFatLoop2(op, symList)
-      else if (deliteKernel) emitKernelAbstractFatLoop(op, symList)
-      else emitInlineAbstractFatLoop(op, symList)
+      throw new GenerationFailedException("TODO: implement emitFatNode in OpenCLGenDeliteOps")
     case _ => super.emitFatNode(symList, rhs)
   }
 
-  def emitMultiLoopFuncs(op: AbstractFatLoop, symList: List[Sym[Any]])(implicit stream: PrintWriter) {
-    val elemFuncs = op.body flatMap { // don't emit dependencies twice!
-      case elem: DeliteCollectElem[_,_] => elem.func :: elem.cond
-      case elem: DeliteForeachElem[_] => List(elem.func)
-      case elem: DeliteReduceElem[_] => elem.func :: elem.cond
-      case elem: DeliteReduceTupleElem[_,_] => elem.func._1 :: elem.func._2 :: elem.cond
-      case _ => throw new GenerationFailedException("CudaGen: ReduceTupleElem is not supported yet.")
-    }
-    //println("starting to call emitFatBlock in emitMultiLoopFuncs")
-    emitFatBlock(elemFuncs)
-    //println("finished calling emitFatBlock in emitMultiLoopsFuncs")
+  override def emitNode(sym: Sym[Any], rhs: Def[Any])(implicit stream: PrintWriter) = rhs match {
+    case s:DeliteOpSingleTask[_] =>
+      emitBlock(s.block)
+      emitValDef(sym,quote(getBlockResult(s.block)))
+    case _ => super.emitNode(sym,rhs)
   }
 
-  def emitCollectElem(op: AbstractFatLoop, sym: Sym[Any], elem: DeliteCollectElem[_,_], prefixSym: String = "")(implicit stream: PrintWriter) {
-    if (elem.cond.nonEmpty) {
-      throw new GenerationFailedException("CudaGen: emitCollectElem with condition (filter) is not supported yet.")
-      /*
-      if (deliteKernel)
-        stream.println(prefixSym + quote(sym) + "_buf_append(" + quote(getBlockResult(elem.func)) + ")")
-      else
-        stream.println(prefixSym + quote(sym) + ".insert(" + prefixSym + quote(sym) + ".length, " + quote(getBlockResult(elem.func)) + ")")
-      */
-    }
-    else {
-      stream.println(prefixSym + quote(sym) + ".dcUpdate(" + quote(op.v) + ", " + quote(getBlockResult(elem.func)) + "); // emitCollectElem")
-    }
+}
+
+trait CGenDeliteOps extends CGenLoopsFat with BaseGenDeliteOps {
+  import IR._
+
+  override def emitFatNode(symList: List[Sym[Any]], rhs: FatDef)(implicit stream: PrintWriter) = rhs match {
+    case op: AbstractFatLoop =>
+      throw new GenerationFailedException("TODO: implement emitFatNode in CGenDeliteOps")
+    case _ => super.emitFatNode(symList, rhs)
   }
 
-  def emitForeachElem(op: AbstractFatLoop, sym: Sym[Any], elem: DeliteForeachElem[_])(implicit stream: PrintWriter) {
-    stream.println(quote(getBlockResult(elem.func)))
+  override def emitNode(sym: Sym[Any], rhs: Def[Any])(implicit stream: PrintWriter) = rhs match {
+    case s:DeliteOpSingleTask[_] =>
+      emitBlock(s.block)
+      emitValDef(sym,quote(getBlockResult(s.block)))
+    case _ => super.emitNode(sym,rhs)
   }
+}
+
+/*
+trait CGenDeliteOps extends CGenEffect with BaseGenDeliteOps {
+  import IR._
 
   def emitFirstReduceElem(op: AbstractFatLoop, sym: Sym[Any], elem: DeliteReduceElem[_], prefixSym: String = "")(implicit stream: PrintWriter) {
       if (elem.cond.nonEmpty) {
@@ -2745,7 +2400,7 @@ trait OpenCLGenDeliteOps extends OpenCLGenEffect with BaseGenDeliteOps {
           //  stream.println(addTab()+"%s(%s,%s);".format(loopFunc,currDimStr,freeVars.map(quote).mkString(",")))
         case (sym, elem: DeliteReduceElem[_]) =>
           if(isPrimitiveType(elem.zero.Type)) throw new GenerationFailedException("CudaGen: DeliteReduceElem is not supported yet.")
-          val isAliased = checkAlias(getBlockResultFull(elem.zero))
+          val isAliased = checkAlias(elem.zero)
           assert(getBlockResult(elem.zero).isInstanceOf[Sym[Any]])
           if(!isAliased) emitAllocFunc(getBlockResult(elem.zero).asInstanceOf[Sym[Any]],elem.zero)
           else stream.println("%s %s_zero = %s;".format(remap(sym.Type),quote(sym),quote(getBlockResult(elem.zero))))
@@ -2806,7 +2461,7 @@ trait OpenCLGenDeliteOps extends OpenCLGenEffect with BaseGenDeliteOps {
       case (sym, elem: DeliteReduceElem[_]) =>
         //println("in 2, reduce")
         if(isPrimitiveType(elem.zero.Type)) throw new GenerationFailedException("CudaGen: DeliteReduceElem is not supported yet.")
-        val isAliased = checkAlias(getBlockResultFull(elem.zero))
+        val isAliased = checkAlias(elem.zero)
         assert(getBlockResult(elem.zero).isInstanceOf[Sym[Any]])
         if(!isAliased) emitAllocFunc(getBlockResult(elem.zero).asInstanceOf[Sym[Any]],elem.zero)
         else stream.println("%s %s_zero = %s;".format(remap(sym.Type),quote(sym),quote(getBlockResult(elem.zero))))
@@ -3243,26 +2898,4 @@ trait OpenCLGenDeliteOps extends OpenCLGenEffect with BaseGenDeliteOps {
   */
 
 }
-
-trait CGenDeliteOps extends CGenEffect with BaseGenDeliteOps {
-  import IR._
-
-  override def emitFatNode(symList: List[Sym[Any]], rhs: FatDef)(implicit stream: PrintWriter) = rhs match {
-    case op: AbstractFatLoop =>
-      //println("TODO: implement emitFatNode in CGenDeliteOps")
-      throw new GenerationFailedException("TODO: implement emitFatNode in CGenDeliteOps")
-    case _ => super.emitFatNode(symList, rhs)
-  }
-
-  override def emitNode(sym: Sym[Any], rhs: Def[Any])(implicit stream: PrintWriter) = rhs match {
-    case s:DeliteOpSingleTask[_] =>
-      emitBlock(s.block)
-      emitValDef(sym,quote(getBlockResult(s.block)))
-
-    //TODO: implement deliteops
-    //case map:DeliteOpMap[_,_,_] =>
-    //case zip: DeliteOpZipWith[_,_,_,_] =>
-    //case mapR:DeliteOpMapReduce[_,_,_] =>
-    case _ => super.emitNode(sym,rhs)
-  }
-}
+*/

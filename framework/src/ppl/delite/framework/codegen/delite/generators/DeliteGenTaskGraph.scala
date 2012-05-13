@@ -61,11 +61,11 @@ trait DeliteGenTaskGraph extends DeliteCodegen with LoopFusionOpt {
     val dataDeps = { // don't use getFreeVarNode...
       val bound = boundSyms(rhs)
       val used = syms(rhs)
-//      println( "=== used for " + sym)
-//      used foreach { s => s match {
-//        case Def(x) => println(s + " = " + x)
-//        case _ => println(s)
-//      }}
+      // println( "=== used for " + sym)
+      // used foreach { s => s match {
+        // case Def(x) => println(s + " = " + x)
+        // case _ => println(s)
+      // }}
       //println(used)
       //focusFatBlock(used) { freeInScope(bound, used) } filter { case Def(r@Reflect(x,u,es)) => used contains r; case _ => true } // distinct
       focusFatBlock(used.map(Block(_))) { freeInScope(bound, used) } // distinct
@@ -86,7 +86,7 @@ trait DeliteGenTaskGraph extends DeliteCodegen with LoopFusionOpt {
 
     if (!skipEmission) for (gen <- generators) {
       val sep = java.io.File.separator
-      val buildPath = Config.buildDir + sep + gen + sep + "kernels" + sep
+      val buildPath = Config.buildDir + sep + (if(gen.toString=="c") "cuda" else gen) + sep + "kernels" + sep
       val outDir = new File(buildPath); outDir.mkdirs()
       val outFile = new File(buildPath + kernelName + "." + gen.kernelFileExt)
       val kstream = new PrintWriter(outFile)
@@ -180,7 +180,7 @@ trait DeliteGenTaskGraph extends DeliteCodegen with LoopFusionOpt {
         // record that this kernel was successfully generated
         supportedTargets += gen.toString
         if (!hasOutputSlotTypes) { // return type is sym type
-          if (resultIsVar) {
+          if (resultIsVar && gen.toString=="scala") {
             returnTypes += new Pair[String,String](gen.toString,"generated.scala.Ref[" + gen.remap(sym.head.Type) + "]") {
               override def toString = "\"" + _1 + "\" : \"" + _2 + "\""
             }
@@ -268,6 +268,7 @@ trait DeliteGenTaskGraph extends DeliteCodegen with LoopFusionOpt {
     */
     printlog(outputSlotTypes)
 
+    val optContext = sym.find(!_.sourceContexts.isEmpty).map(_.sourceContexts.head)
     // emit task graph node
     rhs match {
       case op: AbstractFatLoop => 
@@ -298,9 +299,12 @@ trait DeliteGenTaskGraph extends DeliteCodegen with LoopFusionOpt {
    * @param antiDeps    a list of WAR dependencies (need to be committed in program order)
    */
 
-  def emitMultiLoop(id: String, outputs: List[Exp[Any]], inputs: List[Exp[Any]], mutableInputs: List[Exp[Any]], controlDeps: List[Exp[Any]], antiDeps: List[Exp[Any]], size: Exp[Int], needsCombine: Boolean, needsPostProcess: Boolean)
+  def emitMultiLoop(id: String, outputs: List[Exp[Any]], inputs: List[Exp[Any]], mutableInputs: List[Exp[Any]], controlDeps: List[Exp[Any]], antiDeps: List[Exp[Any]], size: Exp[Int], needsCombine: Boolean, needsPostProcess: Boolean,
+                    sourceContext: Option[SourceContext])
        (implicit stream: PrintWriter, supportedTgt: ListBuffer[String], returnTypes: ListBuffer[Pair[String, String]], outputSlotTypes: HashMap[String, ListBuffer[(String, String)]], metadata: ArrayBuffer[Pair[String,String]]) = {
    stream.println("{\"type\":\"MultiLoop\",")
+   emitSourceContext(sourceContext, stream, id)
+   stream.println(",\n")
    emitConstOrSym(size, "size")
    stream.print(",\"needsCombine\":" + needsCombine)
    stream.print(",\"needsPostProcess\":" + needsPostProcess)
@@ -316,9 +320,10 @@ trait DeliteGenTaskGraph extends DeliteCodegen with LoopFusionOpt {
     stream.println("},")
   }
 
-  def emitSingleTask(id: String, outputs: List[Exp[Any]], inputs: List[Exp[Any]], mutableInputs: List[Exp[Any]], controlDeps: List[Exp[Any]], antiDeps: List[Exp[Any]])
+  def emitSingleTask(id: String, outputs: List[Exp[Any]], inputs: List[Exp[Any]], mutableInputs: List[Exp[Any]], controlDeps: List[Exp[Any]], antiDeps: List[Exp[Any]], sourceContext: Option[SourceContext])
         (implicit stream: PrintWriter, supportedTgt: ListBuffer[String], returnTypes: ListBuffer[Pair[String, String]], outputSlotTypes: HashMap[String, ListBuffer[(String, String)]], metadata: ArrayBuffer[Pair[String,String]]) = {
-    stream.print("{\"type\":\"SingleTask\"")
+    stream.print("{\"type\":\"SingleTask\",")
+    emitSourceContext(sourceContext, stream, id)
     emitExecutionOpCommon(id, outputs, inputs, mutableInputs, controlDeps, antiDeps)
     stream.println("},")
   }
@@ -345,8 +350,17 @@ trait DeliteGenTaskGraph extends DeliteCodegen with LoopFusionOpt {
     stream.println("  \"antiDeps\":[" + makeString(antiDeps) + "],")
     if (remap(thenp.Type) != remap(elsep.Type))
       throw new RuntimeException("Delite conditional with different then and else return types: " + remap(thenp.Type) + " and " + remap(elsep.Type))
-    val returnTypesStr = if(returnTypes.isEmpty) "" else returnTypes.mkString(",")
-    stream.println("  \"return-types\":{" + returnTypesStr + "}")
+    
+    val returnTypesStr = for (gen <- generators) yield {
+      try {
+        "\"" + gen.toString + "\" : \"" + gen.remap(thenp.Type) + "\""
+      } catch {
+        case e:GenerationFailedException => //
+        case e:Exception => throw(e)
+      }
+    }    
+    //val returnTypesStr = if(returnTypes.isEmpty) "" else returnTypes.mkString(",")
+    stream.println("  \"return-types\":{" + returnTypesStr.mkString(",") + "}")
     stream.println("},")
   }
 
