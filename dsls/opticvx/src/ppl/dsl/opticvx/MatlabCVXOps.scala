@@ -98,7 +98,7 @@ trait MatlabCVXOpsExp extends MatlabCVXOps
 
   def matlab_print_problem(obj: ExprTr, cs: Set[Constraint], sz: Exp[Int]): Exp[Unit] = {
     print(matlab_make_problem(obj,cs,sz))
-  }  
+  }
 
   def terribleSolver(obj: ExprTr, cs: Set[Constraint], sz: Exp[Int]): Exp[CVXVector] = {
     val eps = Const(0.01)

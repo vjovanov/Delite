@@ -1,7 +1,7 @@
 package ppl.dsl.opticvx
 
 import scala.virtualization.lms.common.ScalaOpsPkg
-import scala.virtualization.lms.common.{NumericOpsExp, OrderingOpsExp, MathOpsExp, WhileExp, StringOpsExp, BooleanOpsExp, MiscOpsExp, IfThenElseExp}
+import scala.virtualization.lms.common.{NumericOpsExp, OrderingOpsExp, MathOpsExp, FunctionsExp, WhileExp, StringOpsExp, BooleanOpsExp, MiscOpsExp, IfThenElseExp}
 import scala.virtualization.lms.common.{EffectExp, BaseExp, VariablesExp, Base}
 import scala.virtualization.lms.common.ScalaGenBase
 import ppl.delite.framework.ops.{DeliteOpsExp}
@@ -17,7 +17,7 @@ trait AbstractMatrixOps extends Base {
 
 trait AbstractMatrixOpsExp extends AbstractMatrixOps
   with NumericOpsExp with OrderingOpsExp with BooleanOpsExp with EffectExp {
-  self: StringOpsExp with WhileExp with MiscOpsExp with VectorOpsExp with IfThenElseExp 
+  self: StringOpsExp with WhileExp with MiscOpsExp with VectorOpsExp with FunctionsExp with IfThenElseExp 
     with VariablesExp with MathOpsExp =>
 
   trait AbstractMatrix {
@@ -25,6 +25,86 @@ trait AbstractMatrixOpsExp extends AbstractMatrixOps
     def n(): Exp[Int]
     def get_Ax(x: Exp[CVXVector]): Exp[CVXVector]
     def get_ATy(y: Exp[CVXVector]): Exp[CVXVector]
+
+    def ::(A: AbstractMatrix): AbstractMatrix
+      = amatrix_hcat(A,this)
+    def :::(A: AbstractMatrix): AbstractMatrix
+      = amatrix_vcat(A,this)
+  }
+
+  //matrix sum
+  class AbstractMatrixSum(A: AbstractMatrix,B: AbstractMatrix) extends AbstractMatrix {
+    def m(): Exp[Int] = A.m()
+    def n(): Exp[Int] = A.n()
+    def get_Ax(x: Exp[CVXVector]): Exp[CVXVector] = A.get_Ax(x) + B.get_Ax(x)
+    def get_ATy(y: Exp[CVXVector]): Exp[CVXVector] = A.get_ATy(y) + B.get_ATy(y)
+  }
+  def amatrix_sum(A: AbstractMatrix,B: AbstractMatrix): AbstractMatrix
+    = new AbstractMatrixSum(A,B)
+
+  //matrix identity
+  class AbstractMatrixIdentity(sn: Exp[Int]) extends AbstractMatrix {
+    def m(): Exp[Int] = sn
+    def n(): Exp[Int] = sn
+    def get_Ax(x: Exp[CVXVector]): Exp[CVXVector] = x
+    def get_ATy(y: Exp[CVXVector]): Exp[CVXVector] = y
+  }
+  def amatrix_identity(sn: Exp[Int]): AbstractMatrix
+    = new AbstractMatrixIdentity(sn)
+
+  //concatenation for block matrices
+  class AbstractMatrixHCat(A: AbstractMatrix, B: AbstractMatrix) extends AbstractMatrix {
+    def m(): Exp[Int] = A.m()
+    def n(): Exp[Int] = A.n() + B.n()
+    def get_Ax(x: Exp[CVXVector]): Exp[CVXVector] = {
+      vector_sum(A.get_Ax(vector_select(x,unit(0),A.n())),B.get_Ax(vector_select(x,A.n(),B.n())))
+    }
+    def get_ATy(y: Exp[CVXVector]): Exp[CVXVector] = {
+      vector_cat(A.get_ATy(y),B.get_ATy(y))
+    }
+  }
+  def amatrix_hcat(A: AbstractMatrix,B: AbstractMatrix): AbstractMatrix = {
+    //println(unit("Blocking matrices with sizes: ") + string_valueof(A.m()) + " and " + string_valueof(B.m()))
+    new AbstractMatrixHCat(A,B)
+  }
+  def amatrix_vcat(A: AbstractMatrix,B: AbstractMatrix): AbstractMatrix
+    = amatrix_transp(amatrix_hcat(amatrix_transp(A),amatrix_transp(B)))
+
+  //zero matrices
+  class AbstractMatrixZero(sm: Exp[Int], sn: Exp[Int]) extends AbstractMatrix {
+    def m(): Exp[Int] = sm
+    def n(): Exp[Int] = sn
+    def get_Ax(x: Exp[CVXVector]) = vector_zeros(m)
+    def get_ATy(x: Exp[CVXVector]) = vector_zeros(n)
+  }
+  def amatrix_zeros(m: Exp[Int], n: Exp[Int]): AbstractMatrix
+    = new AbstractMatrixZero(m,n)
+
+  //a matrix from a vector
+  class AbstractMatrixVector(c: Exp[CVXVector]) extends AbstractMatrix {
+    def m(): Exp[Int] = vector_len(c)
+    def n(): Exp[Int] = unit(1)
+    def get_Ax(x: Exp[CVXVector]) = vector_scale(c,vector_at(x,unit(0)))
+    def get_ATy(y: Exp[CVXVector]) = vector1(vector_dot(c,y))
+  }
+  def amatrix_fromvector(c: Exp[CVXVector]): AbstractMatrix
+    = new AbstractMatrixVector(c)
+
+  class AbstractMatrixLambda(fAx: Rep[CVXVector=>CVXVector], fATy: Rep[CVXVector=>CVXVector], sm: Exp[Int], sn: Exp[Int]) extends AbstractMatrix {
+    def m() = sm
+    def n() = sn
+    def get_Ax(x: Exp[CVXVector]): Exp[CVXVector]
+      = doApply(fAx,x)
+    def get_ATy(y: Exp[CVXVector]): Exp[CVXVector]
+      = doApply(fATy,y)
+  }
+
+  def amatrix_lambda(A: AbstractMatrix): AbstractMatrix = {
+    new AbstractMatrixLambda(
+      doLambda((x: Exp[CVXVector]) => A.get_Ax(x)),
+      doLambda((y: Exp[CVXVector]) => A.get_ATy(y)),
+      A.m(),
+      A.n())
   }
 
   //matrix product
@@ -56,7 +136,8 @@ trait AbstractMatrixOpsExp extends AbstractMatrixOps
     def m(): Exp[Int] = A.n()
     def n(): Exp[Int] = A.m()
     def get_Ax(x: Exp[CVXVector]): Exp[CVXVector] = {
-      val rv = lsqr(A,x,readVar(x0),eps,maxiter)
+      val rv = vector_sum(lsqr(A,vector_sum(x,vector_neg(A.get_Ax(x0))),eps,maxiter),x0)
+      //val rv = lsqr(A,x,eps,maxiter)
       var_assign(x0, rv)
       //println(Const("         x = ") + vector_to_string_matlab(x))
       //println(Const("    Ainv*x = ") + vector_to_string_matlab(rv))
@@ -65,7 +146,8 @@ trait AbstractMatrixOpsExp extends AbstractMatrixOps
       rv
     }
     def get_ATy(y: Exp[CVXVector]): Exp[CVXVector] = {
-      val rv = lsqr(amatrix_transp(A),y,readVar(y0),eps,maxiter)
+      val rv = vector_sum(lsqr(amatrix_transp(A),vector_sum(y,vector_neg(A.get_ATy(y0))),eps,maxiter),y0)
+      //val rv = lsqr(amatrix_transp(A),y,eps,maxiter)
       var_assign(y0, rv)
       rv
     }
@@ -75,7 +157,7 @@ trait AbstractMatrixOpsExp extends AbstractMatrixOps
 
   //solves the equation Ax=b for x using the LSQR method and returns x
   //TODO: Add stopping criteria based on the eps error parameter
-  def lsqr(A: AbstractMatrix, b: Exp[CVXVector], x0: Exp[CVXVector], eps: Exp[Double], itermax: Exp[Int]): Exp[CVXVector] = {
+  def lsqr(A: AbstractMatrix, b: Exp[CVXVector], eps: Exp[Double], itermax: Exp[Int]): Exp[CVXVector] = {
     eps = Const(1e-40)
     //initialization code
     val beta_init = math_sqrt(vector_dot(b,b))
@@ -84,7 +166,7 @@ trait AbstractMatrixOpsExp extends AbstractMatrixOps
     val alpha_init = math_sqrt(vector_dot(ATu_init,ATu_init))
     val v_init = vector_scale(ATu_init,Const(1.0)/(alpha_init+eps))
     val w_init = v_init
-    val x_init = vector_zeros(vector_len(x0))//x0
+    val x_init = vector_zeros(A.n())//x0
     val phi_init = beta_init
     val rho_init = alpha_init
     //define the variables
