@@ -80,7 +80,7 @@ cvx_end
     //println("y = " + resolve(y))
     //println("J = " + resolve(J))
 
-    //println("min(3,5) = " + resolve(min(inputscalar(3.0),inputscalar(5.0))))
+    println("min(3,5) = " + resolve(min(inputscalar(3.0),inputscalar(5.0))))
     println("inv(0.5) = " + resolve(inv(inputscalar(0.5))))
 
     //val t = variable()

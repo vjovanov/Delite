@@ -23,7 +23,7 @@ trait SolverOpsExp extends SolverOps
   
   case class SymmetricCone(
     //size of unconstrained variables
-    val unconstrained_sz: Exp[Int], 
+    //val unconstrained_sz: Exp[Int], 
     //size of positive simplex variables
     val psimplex_sz: Exp[Int],
     //n values for second-order-cone constraints 
@@ -32,7 +32,7 @@ trait SolverOpsExp extends SolverOps
     val definite_ns: Seq[Exp[Int]]
   ) {
     def contains(x: Exp[CVXVector]): Exp[Boolean] = {
-      var ind = unconstrained_sz
+      var ind = unit(0) //unconstrained_sz
       val xsimplex = vector_select(x,ind,psimplex_sz);
       ind  = ind + psimplex_sz
       var rv = vector_ispositive(xsimplex)
@@ -54,8 +54,8 @@ trait SolverOpsExp extends SolverOps
       val rv = var_new[CVXVector](vector_zeros(Const(0)))
       var ind: Exp[Int] = Const(0)
       //pass the constants through unmodified
-      var_assign(rv, vector_cat(readVar(rv), vector_select(x, ind, unconstrained_sz)))
-      ind = ind + unconstrained_sz
+      //var_assign(rv, vector_cat(readVar(rv), vector_select(x, ind, unconstrained_sz)))
+      //ind = ind + unconstrained_sz
       //make the positive simplex nodes positive
       var_assign(rv, vector_cat(readVar(rv), vector_positive_part(vector_select(x, ind, psimplex_sz))))
       ind = ind + psimplex_sz
@@ -93,21 +93,71 @@ trait SolverOpsExp extends SolverOps
       //return the accumulated vector
       return readVar(rv)    
     }
-    def project_dual(x: Exp[CVXVector]): Exp[CVXVector] = {
-      val proj = project(x)
-      vector_cat(vector_zeros(unconstrained_sz),vector_select(proj,unconstrained_sz,vector_len(proj)-unconstrained_sz))
-    }
+    //def project_dual(x: Exp[CVXVector]): Exp[CVXVector] = {
+    //  val proj = project(x)
+    //  vector_cat(vector_zeros(unconstrained_sz),vector_select(proj,unconstrained_sz,vector_len(proj)-unconstrained_sz))
+    //}
   }
   
+  //minimize c'*x subject to Ax*x + bx = 0 and Az*x + bz \in K
+  def solve(Ax: AbstractMatrix, Az: AbstractMatrix, bx: Exp[CVXVector], bz: Exp[CVXVector], c: Exp[CVXVector], K: SymmetricCone): Exp[CVXVector] = {
+    new ADMMSolver(Ax,Az,bx,bz,c,K,unit(1.0)).solve()
+  }
+    
+  trait Solver {
+    def solve(): Exp[CVXVector]
+  }
+  
+  class ADMMSolver(Ax: AbstractMatrix, Az: AbstractMatrix, bx: Exp[CVXVector], bz: Exp[CVXVector], c: Exp[CVXVector], K: SymmetricCone, rho: Exp[Double]) extends Solver {
+    
+    var PA: AbstractMatrix = null
+    
+    def setup() {
+      val ATA = amatrix_sum(amatrix_prod(amatrix_transp(Ax),Ax),amatrix_prod(amatrix_transp(Az),Az))
+      PA = amatrix_inv_lsqr(ATA,Const(0.001),Const(10))
+    }
+    
+    def solve(): Exp[CVXVector] = {
+      setup()
+      //set up ADMM variables
+      val x = var_new[CVXVector](vector_zeros(Ax.n()))
+      val z = var_new[CVXVector](vector_zeros(Az.m()))
+      val ux = var_new[CVXVector](vector_zeros(Ax.m()))
+      val uz = var_new[CVXVector](vector_zeros(Az.m()))
+      //iterate
+      val niters = var_new[Int](Const(0))
+      __whileDo(niters <= Const(1000), {
+        //println(unit("x = ") + vector_to_string_matlab(x))
+        //update x
+        var_assign(x, update_x(readVar(z),readVar(ux),readVar(uz)))
+        //update z
+        var_assign(z, update_z(readVar(x),readVar(uz)))
+        //update u
+        var_assign(ux, readVar(ux) + Ax.get_Ax(readVar(x)) + bx)
+        var_assign(uz, readVar(uz) + Az.get_Ax(readVar(x)) + readVar(z) + bz)
+        //increment loop variable
+        var_assign(niters, readVar(niters)+Const(1))
+      })
+      x
+    }
+    
+    def update_x(z: Exp[CVXVector], ux: Exp[CVXVector], uz: Exp[CVXVector]): Exp[CVXVector] = {
+      vector_neg(PA.get_Ax(vector_scale(c,unit(1.0)/rho) + Az.get_ATy(z + bz + uz) + Ax.get_ATy(bx + ux)))
+    }
+    
+    def update_z(x: Exp[CVXVector], uz: Exp[CVXVector]): Exp[CVXVector] = {
+      vector_neg(K.project(bz + Az.get_Ax(x) + uz))
+    }
+    
+  }
+  
+  /*
   //minimize c'*x subject to A*x = b and x \in K
   def solve(A: AbstractMatrix, b: Exp[CVXVector], c: Exp[CVXVector], K: SymmetricCone): Exp[CVXVector] = {
     println(Const("Matrix A is ") + string_valueof(A.m()) + Const(" by ") + string_valueof(A.n()))
     new PrimalDualHomogenousSolver(A,b,c,K).solve()
   }
-  
-  trait Solver {
-    def solve(): Exp[CVXVector]
-  }
+
   
   class PrimalDualHomogenousSolver(A: AbstractMatrix, b: Exp[CVXVector], c: Exp[CVXVector], K: SymmetricCone) extends Solver {
     
@@ -156,14 +206,12 @@ trait SolverOpsExp extends SolverOps
       
       //println(unit("assembling result..."))
       val rv = vector_cat(vector_cat(vector_cat(vector_cat(x_proj, y),lambda_proj),vector1(tau_proj)),vector1(rho_proj))
-      /*
-      println(unit("len(x) = ") + string_valueof(vector_len(x)))
-      println(unit("len(PK(x)) = ") + string_valueof(vector_len(x_proj)))
-      println(unit("len(lambda) = ") + string_valueof(vector_len(lambda)))
-      println(unit("len(PK(lambda)) = ") + string_valueof(vector_len(lambda_proj)))
-      println(unit("len(vv) = ") + string_valueof(vector_len(vv)))
-      println(unit("len(rv) = ") + string_valueof(vector_len(rv)))
-      */
+//       println(unit("len(x) = ") + string_valueof(vector_len(x)))
+//       println(unit("len(PK(x)) = ") + string_valueof(vector_len(x_proj)))
+//       println(unit("len(lambda) = ") + string_valueof(vector_len(lambda)))
+//       println(unit("len(PK(lambda)) = ") + string_valueof(vector_len(lambda_proj)))
+//       println(unit("len(vv) = ") + string_valueof(vector_len(vv)))
+//       println(unit("len(rv) = ") + string_valueof(vector_len(rv)))
       rv
     }
     
@@ -210,28 +258,26 @@ trait SolverOpsExp extends SolverOps
         //var_assign(vv, vector_scale(vv,unit(1.0)/math_sqrt(vector_dot(vv,vv))))
         var_assign(niters, readVar(niters)+Const(1))
       })
-      /*
-      println(unit("Solved!"))
-      println(unit("b = ") + vector_to_string_matlab(b))
-      println(unit("c = ") + vector_to_string_matlab(c))
-      println(unit("x = ") + vector_to_string_matlab(select_x(vv)))
-      println(unit("y = ") + vector_to_string_matlab(select_y(vv)))
-      val cx = vector_dot(c,select_x(vv))
-      println(unit("cx = ") + string_valueof(cx))
-      val by = vector_dot(b,select_y(vv))
-      println(unit("by = ") + string_valueof(by))
-      println(unit("L = ") + vector_to_string_matlab(select_lambda(vv)))
-      println(unit("T = ") + string_valueof(select_tau(vv)))
-      println(unit("R = ") + string_valueof(select_rho(vv)))
-      val MSTL = amatrix_transp(amatrix_fromvector(c)) :: amatrix_transp(amatrix_fromvector(vector_neg(b))) :: amatrix_zeros(unit(1),A.n()+unit(1)) :: amatrix_identity(unit(1))
-      println(unit("cx-by+T = ") + string_valueof(vector_at(MSTL.get_Ax(vv),unit(0))))
-      println(unit("MSTL = ") + vector_to_string_matlab(MSTL.get_ATy(vector1(unit(1.0)))))
-      val EE = M.get_Ax(vv)
-      val nE = math_sqrt(vector_dot(EE,EE))
-      println(unit("EV = ") + vector_to_string_matlab(EE))
-      println(unit("E = ") + string_valueof(nE))
-      println(unit(""))
-      */
+//       println(unit("Solved!"))
+//       println(unit("b = ") + vector_to_string_matlab(b))
+//       println(unit("c = ") + vector_to_string_matlab(c))
+//       println(unit("x = ") + vector_to_string_matlab(select_x(vv)))
+//       println(unit("y = ") + vector_to_string_matlab(select_y(vv)))
+//       val cx = vector_dot(c,select_x(vv))
+//       println(unit("cx = ") + string_valueof(cx))
+//       val by = vector_dot(b,select_y(vv))
+//       println(unit("by = ") + string_valueof(by))
+//       println(unit("L = ") + vector_to_string_matlab(select_lambda(vv)))
+//       println(unit("T = ") + string_valueof(select_tau(vv)))
+//       println(unit("R = ") + string_valueof(select_rho(vv)))
+//       val MSTL = amatrix_transp(amatrix_fromvector(c)) :: amatrix_transp(amatrix_fromvector(vector_neg(b))) :: amatrix_zeros(unit(1),A.n()+unit(1)) :: amatrix_identity(unit(1))
+//       println(unit("cx-by+T = ") + string_valueof(vector_at(MSTL.get_Ax(vv),unit(0))))
+//       println(unit("MSTL = ") + vector_to_string_matlab(MSTL.get_ATy(vector1(unit(1.0)))))
+//       val EE = M.get_Ax(vv)
+//       val nE = math_sqrt(vector_dot(EE,EE))
+//       println(unit("EV = ") + vector_to_string_matlab(EE))
+//       println(unit("E = ") + string_valueof(nE))
+//       println(unit(""))
       vector_scale(select_x(vv),unit(1.0)/select_tau(vv))
     }
     
@@ -393,6 +439,7 @@ trait SolverOpsExp extends SolverOps
       K.contains(x)
     }
   }
+  */
 }
 
 trait ScalaGenSolverOps extends ScalaGenBase {

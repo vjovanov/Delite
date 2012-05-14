@@ -98,17 +98,18 @@ trait ObjectiveOpsExp extends ObjectiveOps
     //matlab_print_problem(cx,constraints,problem_size)
     //sort the constraints
     println("Transforming " + constraints.size + " constraints.")
-    val unconstrained_sz = problem_size
+    //val unconstrained_sz = problem_size
     var psimplex_sz: Exp[Int] = Const(0)
     var soc_ns: Seq[Exp[Int]] = Seq()
     var definite_ns: Seq[Exp[Int]] = Seq()
     var zero_exps: Seq[ExprTr] = Seq()
+    var cone_exps: Seq[ExprTr] = Seq()
     for(c <- constraints) {
       c match {
         case cc: ConstrainZero =>
           val x = cc.x
           println("Processing equality constraint...")
-          zero_exps = zero_exps :+ x
+          zero_exps :+= x
         case _ =>
           //println("Deferring non-equality constraint of type " + c.getClass())
       }
@@ -118,11 +119,13 @@ trait ObjectiveOpsExp extends ObjectiveOps
         case cc: ConstrainNonnegative =>
           val x = cc.x
           println("Processing nonnegative constraint...")
-          val vcx = new OptVarExp(scalar())
-          vcx.lookup_offset = problem_size
-          zero_exps = zero_exps :+ canonicalize(x.asInstanceOf[Def[Expr]] - vcx)
-          problem_size = problem_size + Const(1)
-          psimplex_sz = psimplex_sz + Const(1)
+          psimplex_sz = psimplex_sz + unit(1)
+          cone_exps :+= x
+          //val vcx = new OptVarExp(scalar())
+          //vcx.lookup_offset = problem_size
+          //zero_exps = zero_exps :+ canonicalize(x.asInstanceOf[Def[Expr]] - vcx)
+          //problem_size = problem_size + Const(1)
+          //psimplex_sz = psimplex_sz + Const(1)
         case _ =>
           //println("Deferring non-nonnegative constraint of type " + c.getClass())
       }
@@ -133,20 +136,23 @@ trait ObjectiveOpsExp extends ObjectiveOps
           val x = cc.x
           val z = cc.z
           println("Processing second-order cone constraint...")
-          val vcx = new OptVarExp(x.shape())
-          vcx.lookup_offset = problem_size
-          zero_exps = zero_exps :+ canonicalize(x.asInstanceOf[Def[Expr]] - vcx)
-          problem_size = problem_size + x.size
-          val vcz = new OptVarExp(scalar())
-          vcz.lookup_offset = problem_size
-          zero_exps = zero_exps :+ canonicalize(z.asInstanceOf[Def[Expr]] - vcz)
-          problem_size = problem_size + Const(1)
           canonicalize(x.shape()) match {
             case ExprShapeVectorExp(n) =>
               soc_ns :+= n
             case _ =>
               throw new Exception("Internal Error: Invalid shape on SOC constraint.")
           }
+          cone_exps :+= x
+          cone_exps :+= z
+          //val vcx = new OptVarExp(x.shape())
+          //vcx.lookup_offset = problem_size
+          //zero_exps = zero_exps :+ canonicalize(x.asInstanceOf[Def[Expr]] - vcx)
+          //problem_size = problem_size + x.size
+          //val vcz = new OptVarExp(scalar())
+          //vcz.lookup_offset = problem_size
+          //zero_exps = zero_exps :+ canonicalize(z.asInstanceOf[Def[Expr]] - vcz)
+          //problem_size = problem_size + Const(1)
+
         case _ =>
           //println("Deferring non-soc constraint of type " + c.getClass())
       }
@@ -156,32 +162,38 @@ trait ObjectiveOpsExp extends ObjectiveOps
         case cc: ConstrainSemidefinite =>
           val x = cc.x
           println("Processing semidefinite constraint...")
-          val vcx = new OptVarExp(x.shape())
-          vcx.lookup_offset = problem_size
-          zero_exps = zero_exps :+ canonicalize(x.asInstanceOf[Def[Expr]] - vcx)
-          problem_size = problem_size + x.size
           canonicalize(x.shape()) match {
             case ExprShapeSMatrixExp(n) =>
               definite_ns :+= n
             case _ =>
               throw new Exception("Internal Error: Invalid shape on definiteness constraint.")
           }
+          cone_exps :+= x
+          //val vcx = new OptVarExp(x.shape())
+          //vcx.lookup_offset = problem_size
+          //zero_exps = zero_exps :+ canonicalize(x.asInstanceOf[Def[Expr]] - vcx)
+          //problem_size = problem_size + x.size
         case _ =>
           //println("Deferring non-semidefinite constraint of type " + c.getClass())
       }
     }
     println("Transformed to " + zero_exps.length + " total constraints.")
     //convert into standard form
-    val stdA = new ExprSeqMatrix(zero_exps, problem_size)
-    var stdB = vector_zeros(Const(0))
+    val stdAx = new ExprSeqMatrix(zero_exps, problem_size)
+    val stdAz = new ExprSeqMatrix(cone_exps, problem_size)
+    var stdBx = vector_zeros(Const(0))
     for(x <- zero_exps) {
-      stdB = vector_cat(stdB, x.get_b())
+      stdBx = vector_cat(stdBx, x.get_b())
     }
-    stdB = vector_neg(stdB)
+    var stdBz = vector_zeros(Const(0))
+    for(x <- cone_exps) {
+      stdBz = vector_cat(stdBz, x.get_b())
+    }
+    //stdB = vector_neg(stdB)
     val stdC = cx.get_ATy(vector1(Const(1.0)), problem_size)
-    val stdK = SymmetricCone(unconstrained_sz, psimplex_sz, soc_ns, definite_ns)
+    val stdK = SymmetricCone(psimplex_sz, soc_ns, definite_ns)
     //invoke the solver
-    val solution = solve(stdA, stdB, stdC, stdK)
+    val solution = solve(stdAx, stdAz, stdBx, stdBz, stdC, stdK)
     //distribute the solution
     for(v <- convars) {
       if(v.solved == false) {

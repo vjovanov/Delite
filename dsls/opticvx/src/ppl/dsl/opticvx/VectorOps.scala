@@ -21,6 +21,9 @@ trait VectorOpsExp extends VectorOps
   
   type CVXVector = Array[Double]
   
+  def infix_+(x: Exp[CVXVector], y: Exp[CVXVector]): Exp[CVXVector]
+    = vector_sum(x,y)
+  
   //sum of two vectors
   case class VectorSumExp(x: Exp[CVXVector], y: Exp[CVXVector]) extends Def[CVXVector]
   def vector_sum(x: Exp[CVXVector], y: Exp[CVXVector]): Exp[CVXVector]

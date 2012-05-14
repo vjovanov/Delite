@@ -32,6 +32,16 @@ trait AbstractMatrixOpsExp extends AbstractMatrixOps
       = amatrix_vcat(A,this)
   }
 
+  //matrix sum
+  class AbstractMatrixSum(A: AbstractMatrix,B: AbstractMatrix) extends AbstractMatrix {
+    def m(): Exp[Int] = A.m()
+    def n(): Exp[Int] = A.n()
+    def get_Ax(x: Exp[CVXVector]): Exp[CVXVector] = A.get_Ax(x) + B.get_Ax(x)
+    def get_ATy(y: Exp[CVXVector]): Exp[CVXVector] = A.get_ATy(y) + B.get_ATy(y)
+  }
+  def amatrix_sum(A: AbstractMatrix,B: AbstractMatrix): AbstractMatrix
+    = new AbstractMatrixSum(A,B)
+
   //matrix identity
   class AbstractMatrixIdentity(sn: Exp[Int]) extends AbstractMatrix {
     def m(): Exp[Int] = sn
