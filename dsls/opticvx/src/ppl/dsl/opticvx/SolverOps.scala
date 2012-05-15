@@ -19,88 +19,11 @@ trait SolverOpsExp extends SolverOps
   with NumericOpsExp with OrderingOpsExp with BooleanOpsExp with EffectExp {
   self: ExprOpsExp with OptVarOpsExp with ExprShapeOpsExp with StringOpsExp with WhileExp
     with MiscOpsExp with ConstraintOpsExp with VectorOpsExp with IfThenElseExp 
-    with VariablesExp with MathOpsExp with AbstractMatrixOpsExp with PrimitiveOps =>
-  
-  case class SymmetricCone(
-    //size of unconstrained variables
-    //val unconstrained_sz: Exp[Int], 
-    //size of positive simplex variables
-    val psimplex_sz: Exp[Int],
-    //n values for second-order-cone constraints 
-    val soc_ns: Seq[Exp[Int]],
-    //n values for definitness constraints
-    val definite_ns: Seq[Exp[Int]]
-  ) {
-    def contains(x: Exp[CVXVector]): Exp[Boolean] = {
-      var ind = unit(0) //unconstrained_sz
-      val xsimplex = vector_select(x,ind,psimplex_sz);
-      ind  = ind + psimplex_sz
-      var rv = vector_ispositive(xsimplex)
-      for(n <- soc_ns) {
-        val cx: Exp[CVXVector] = vector_select(x,ind,n)
-        ind = ind + n
-        val cz: Exp[Double] = vector_at(x, ind)
-        ind = ind + unit(1)
-        val norm2cx: Exp[Double] = vector_dot(cx,cx);
-        rv = rv && ((cz*cz) >= norm2cx)
-      }
-      for(n <- definite_ns) {
-        //throw an error as this projection is not implemented
-        throw new Exception("Definitness constraints not implemented yet.")
-      }
-      rv
-    }
-    def project(x: Exp[CVXVector]): Exp[CVXVector] = {
-      val rv = var_new[CVXVector](vector_zeros(Const(0)))
-      var ind: Exp[Int] = Const(0)
-      //pass the constants through unmodified
-      //var_assign(rv, vector_cat(readVar(rv), vector_select(x, ind, unconstrained_sz)))
-      //ind = ind + unconstrained_sz
-      //make the positive simplex nodes positive
-      var_assign(rv, vector_cat(readVar(rv), vector_positive_part(vector_select(x, ind, psimplex_sz))))
-      ind = ind + psimplex_sz
-      //project onto second-order cones
-      for(n <- soc_ns) {
-        val cx: Exp[CVXVector] = vector_select(x, ind, n)
-        ind = ind + n
-        val cz: Exp[Double] = vector_at(x, ind)
-        ind = ind + Const(1)
-        val norm2cx: Exp[Double] = vector_dot(cx,cx);
-        if((cz*cz) >= norm2cx) {
-          if(cz <= Const(0.0)) {
-            //projection is onto the zero point
-            var_assign(rv, vector_cat(readVar(rv), vector_zeros(n + Const(1))))
-          }
-          else {
-            //projection retains the original value
-            var_assign(rv, vector_cat(readVar(rv), cx))
-            var_assign(rv, vector_cat(readVar(rv), vector1(cz)))
-          }
-        }
-        else {
-          //use the projection formula on pg447 of Boyd and Vandenberghe
-          val normcx: Exp[Double] = math_sqrt(norm2cx)
-          val cscale: Exp[Double] = Const(0.5)*(Const(1.0) + cz/normcx)
-          var_assign(rv, vector_cat(readVar(rv), vector_scale(cx, cscale)))
-          var_assign(rv, vector_cat(readVar(rv), vector1(normcx * cscale)))
-        }
-      }
-      //project onto semidefinite cone
-      for(n <- definite_ns) {
-        //throw an error as this projection is not implemented
-        throw new Exception("Definitness constraints not implemented yet.")
-      }
-      //return the accumulated vector
-      return readVar(rv)    
-    }
-    //def project_dual(x: Exp[CVXVector]): Exp[CVXVector] = {
-    //  val proj = project(x)
-    //  vector_cat(vector_zeros(unconstrained_sz),vector_select(proj,unconstrained_sz,vector_len(proj)-unconstrained_sz))
-    //}
-  }
+    with VariablesExp with MathOpsExp with AbstractMatrixOpsExp with PrimitiveOps
+    with ConeOpsExp =>
   
   //minimize c'*x subject to Ax*x + bx = 0 and Az*x + bz \in K
-  def solve(Ax: AbstractMatrix, Az: AbstractMatrix, bx: Exp[CVXVector], bz: Exp[CVXVector], c: Exp[CVXVector], K: SymmetricCone): Exp[CVXVector] = {
+  def solve(Ax: AbstractMatrix, Az: AbstractMatrix, bx: Exp[CVXVector], bz: Exp[CVXVector], c: Exp[CVXVector], K: Cone): Exp[CVXVector] = {
     new ADMMSolver(Ax,Az,bx,bz,c,K,unit(1.0)).solve()
   }
     
@@ -108,13 +31,16 @@ trait SolverOpsExp extends SolverOps
     def solve(): Exp[CVXVector]
   }
   
-  class ADMMSolver(Ax: AbstractMatrix, Az: AbstractMatrix, bx: Exp[CVXVector], bz: Exp[CVXVector], c: Exp[CVXVector], K: SymmetricCone, rho: Exp[Double]) extends Solver {
+  class ADMMSolver(Ax: AbstractMatrix, Az: AbstractMatrix, bx: Exp[CVXVector], bz: Exp[CVXVector], c: Exp[CVXVector], K: Cone, rho: Exp[Double]) extends Solver {
     
     var PA: AbstractMatrix = null
     
     def setup() {
+      Ax = amatrix_lambda(Ax)
+      Az = amatrix_lambda(Az)
       val ATA = amatrix_sum(amatrix_prod(amatrix_transp(Ax),Ax),amatrix_prod(amatrix_transp(Az),Az))
       PA = amatrix_inv_lsqr(ATA,Const(0.001),Const(10))
+      PA = amatrix_lambda(PA)
     }
     
     def solve(): Exp[CVXVector] = {
@@ -125,8 +51,9 @@ trait SolverOpsExp extends SolverOps
       val ux = var_new[CVXVector](vector_zeros(Ax.m()))
       val uz = var_new[CVXVector](vector_zeros(Az.m()))
       //iterate
-      val niters = var_new[Int](Const(0))
-      __whileDo(niters <= Const(1000), {
+      val niters = var_new[Int](unit(0))
+      val loopdone = var_new[Boolean](unit(false))
+      __whileDo((niters <= unit(1000))&&(!readVar(loopdone)), {
         //println(unit("x = ") + vector_to_string_matlab(x))
         //update x
         var_assign(x, update_x(readVar(z),readVar(ux),readVar(uz)))
@@ -135,9 +62,16 @@ trait SolverOpsExp extends SolverOps
         //update u
         var_assign(ux, readVar(ux) + Ax.get_Ax(readVar(x)) + bx)
         var_assign(uz, readVar(uz) + Az.get_Ax(readVar(x)) + readVar(z) + bz)
+        //evaluate stopping conditions
+        val Ex = Ax.get_Ax(readVar(x)) + bx
+        val Ez = Az.get_Ax(readVar(x)) + readVar(z) + bz
+        val Err = math_sqrt(vector_dot(Ex,Ex) + vector_dot(Ez,Ez))
+        //println(unit("Err = ") + string_valueof(Err))
+        var_assign(loopdone, Err <= unit(1e-5))
         //increment loop variable
         var_assign(niters, readVar(niters)+Const(1))
       })
+      println(unit("Converged in ") + string_valueof(niters) + unit(" steps."))
       x
     }
     
