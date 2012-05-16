@@ -80,8 +80,21 @@ cvx_end
     //println("y = " + resolve(y))
     //println("J = " + resolve(J))
 
-    println("min(3,5) = " + resolve(min(inputscalar(3.0),inputscalar(5.0))))
-    println("inv(0.5) = " + resolve(inv(inputscalar(0.5))))
+    val c = math_sqrt(4.0)
+
+    val x = variable()
+    val y = variable()
+    val z = variable()
+    val J = inv(x) - y
+    y >= 1
+    y <= 2
+    x <= 1
+    c == x + y - z
+    minimize (J) over (x,y,z)
+    println("x = " + resolve(x))
+    println("y = " + resolve(y))
+    println("z = " + resolve(z))
+    println("J = " + resolve(J))
 
     //val t = variable()
     //val x = variable(vector(2))
