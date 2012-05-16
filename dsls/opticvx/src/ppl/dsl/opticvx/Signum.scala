@@ -14,6 +14,13 @@ sealed abstract class Signum {
 }
 
 object Signum {
+  def sgn(x: Double): Signum = {
+    if(x > 0.0) Positive
+    else if (x == 0.0) Zero
+    else if (x < 0.0) Negative
+    else All
+  }
+
   case object All extends Signum {
     override def +(d: Signum) = d match {
       case All => All
