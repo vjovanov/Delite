@@ -71,7 +71,7 @@ trait ExprOpsExp extends ExprOps
   }
 
   def introspect(x: Rep[Expr], s: String): Rep[Unit] = {
-    println("[" + Console.BLUE + "introspect" + Console.RESET + "] Expression \"" + s + "\"has vexity " + Vexity.format(canonicalize(x).vexity()) + ".")
+    println("[" + Console.BLUE + "introspect" + Console.RESET + "] Expression \"" + s + "\" has vexity " + Vexity.format(canonicalize(x).vexity()) + ".")
   }
 
   def positive(x: Exp[Double]): MultiplicativeScalar = {
