@@ -58,11 +58,21 @@ trait ExprOps extends Base {
 
   def resolve(x: Rep[Expr]): Rep[Double]
 
+  def introspect(x: Rep[Expr]): Rep[Unit]
+  def introspect(x: Rep[Expr], s: String): Rep[Unit]
 }
 
 trait ExprOpsExp extends ExprOps
   with NumericOpsExp with OrderingOpsExp with BooleanOpsExp with DeliteOpsExp with EffectExp {
   self: ExprShapeOpsExp with OptVarOpsExp with VectorOpsExp with IfThenElseExp =>
+
+  def introspect(x: Rep[Expr]): Rep[Unit] = {
+    println("[" + Console.BLUE + "introspect" + Console.RESET + "] Unnamed expression has vexity " + Vexity.format(canonicalize(x).vexity()) + ".")
+  }
+
+  def introspect(x: Rep[Expr], s: String): Rep[Unit] = {
+    println("[" + Console.BLUE + "introspect" + Console.RESET + "] Expression \"" + s + "\"has vexity " + Vexity.format(canonicalize(x).vexity()) + ".")
+  }
 
   def positive(x: Exp[Double]): MultiplicativeScalar = {
     if(x < unit(0.0)) {

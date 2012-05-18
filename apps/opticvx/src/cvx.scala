@@ -91,6 +91,10 @@ cvx_end
     //x <= 1
     //c == x + y - z
     1 <= 2*min(x,y)
+    introspect(min(x,y),"min(x,y)")
+    introspect(inv(x+y),"inv(x+y)")
+    introspect(x-y,"x-y")
+    introspect(x)
     val J = x + 2*y
     minimize (x + 2*y) over (x,y)
     println("x = " + resolve(x))
