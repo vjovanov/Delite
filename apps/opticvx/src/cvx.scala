@@ -95,7 +95,7 @@ cvx_end
     introspect(inv(x+y),"inv(x+y)")
     introspect(x-y,"x-y")
     introspect(x)
-    val J = x + 2*y
+    val J = x + y*2
     minimize (x + 2*y) over (x,y)
     println("x = " + resolve(x))
     println("y = " + resolve(y))

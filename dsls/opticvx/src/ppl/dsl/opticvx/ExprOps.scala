@@ -27,6 +27,10 @@ trait ExprOps extends Base {
   def infix_*(x: Rep[Expr], y: MultiplicativeScalar): Rep[Expr] = prod(x, y.value, y.sign)
   def infix_*(x: MultiplicativeScalar, y: Rep[Expr]): Rep[Expr] = prod(y, x.value, x.sign)
 
+  //these lines are needed to fix some sort of conflict with OptiLA
+  def infix_*(x: Double, y: Rep[Expr]): Rep[Expr] = prod(y, unit(x), Signum.sgn(x))
+  def infix_*(y: Rep[Expr], x: Double): Rep[Expr] = prod(y, unit(x), Signum.sgn(x))
+
   implicit def doubleToMultScalar(x: Double): MultiplicativeScalar
     = MultiplicativeScalar(unit(x), Signum.sgn(x))
 
