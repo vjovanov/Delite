@@ -17,12 +17,14 @@ trait VectorOps extends Base {
   
 }
 
+/*
 trait VectorOpsExp extends VectorOps
   with NumericOpsExp with OrderingOpsExp with BooleanOpsExp with EffectExp {
   self: ExprOpsExp with StringOpsExp with WhileExp with VariablesExp
         with optila.OptiLAExp =>
   
   type CVXVector = optila.DenseVector[Double] //Array[Double]
+  
   implicit val implicit_dense_vector_builder = denseVectorBuilder[Double]
   
   def infix_+(x: Exp[CVXVector], y: Exp[CVXVector]): Exp[CVXVector]
@@ -112,8 +114,9 @@ trait VectorOpsExp extends VectorOps
   }
   
 }
+*/
 
-/*
+
 trait VectorOpsExp extends VectorOps
   with NumericOpsExp with OrderingOpsExp with BooleanOpsExp with EffectExp {
   self: ExprOpsExp with StringOpsExp with WhileExp with VariablesExp
@@ -200,14 +203,12 @@ trait VectorOpsExp extends VectorOps
     readVar(vacc)
   }
 }
-*/
 
 trait ScalaGenVectorOps extends ScalaGenBase {
   val IR: VectorOpsExp
   import IR._
 
   override def emitNode(sym: Sym[Any], rhs: Def[Any])(implicit stream: PrintWriter) = {
-    /*
     rhs match {
       case VectorSumExp(x,y) =>
         stream.println("if(" + quote(x) + ".length != " + quote(y) + ".length) {")
@@ -307,6 +308,6 @@ trait ScalaGenVectorOps extends ScalaGenBase {
       case _ => 
         super.emitNode(sym, rhs)
     }
-    */
+    
   }
 }

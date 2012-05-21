@@ -157,15 +157,15 @@ trait OptiCVXExp extends OptiLAExp
 /**
  * CVX code generators
  */
-trait OptiCVXCodeGenBase extends GenericFatCodegen with codegen.Utils {
+trait OptiCVXCodeGenBase extends OptiLACodeGenBase { //with GenericFatCodegen with codegen.Utils {
 
   val IR: DeliteApplication with OptiCVXExp
   override def initialDefs = IR.deliteGenerator.availableDefs
 
   //def dsmap(line: String) = line
-  def dsmap(s: String) = {
-    s.replaceAll("ppl.dsl.opticvx.datastruct", "generated")
-  }
+  //override def dsmap(s: String) = {
+  //  super.dsmap(s.replaceAll("ppl.dsl.opticvx.datastruct", "generated"))
+  //}
 
   override def remap[A](m: Manifest[A]): String = dsmap(super.remap(m))
   /*
@@ -177,11 +177,11 @@ trait OptiCVXCodeGenBase extends GenericFatCodegen with codegen.Utils {
   }
   */
   override def emitDataStructures(path: String) {
-    val s = File.separator
-    val dsRoot = Config.homeDir + s + "dsls" + s + "opticvx" + s + "src" + s + "ppl" + s + "dsl" + s + "opticvx" + s + "datastruct" + s + this.toString
-    copyDataStructures(dsRoot, path, dsmap)
+    //val s = File.separator
+    //val dsRoot = Config.homeDir + s + "dsls" + s + "opticvx" + s + "src" + s + "ppl" + s + "dsl" + s + "opticvx" + s + "datastruct" + s + this.toString
+    //copyDataStructures(dsRoot, path, dsmap)
 
-    //super.emitDataStructures(path) // get optila data structures
+    super.emitDataStructures(path) // get optila data structures
     /*
     val s = File.separator
     val dsRoot = Config.homeDir + s+"dsls"+s+"cvx"+s+"src"+s+"ppl"+s+"dsl"+s+"cvx"+s+"datastruct"+s + this.toString
@@ -240,7 +240,7 @@ trait OptiCVXCodeGenScala extends OptiLACodeGenScala
     var res = line.replaceAll("ppl.dsl.opticvx.datastruct", "generated")
     res = res.replaceAll("ppl.delite.framework.datastruct", "generated")
     res = res.replaceAll("ppl.dsl.opticvx", "generated.scala")
-    res      
+    super.dsmap(res)
   }
 
 }
