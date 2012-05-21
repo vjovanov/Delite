@@ -13,9 +13,9 @@ import ppl.delite.framework.codegen.scala.TargetScala
 import ppl.delite.framework.codegen.delite.overrides.{DeliteCudaGenAllOverrides, DeliteCGenAllOverrides, DeliteScalaGenAllOverrides, DeliteAllOverridesExp}
 import ppl.delite.framework.ops._
 
-//import ppl.dsl.optila.{OptiLAApplication}
-//import ppl.dsl.optila.{OptiLAScalaOpsPkg, OptiLAScalaOpsPkgExp, OptiLA, OptiLAExp, OptiLACompiler, OptiLALift}
-//import ppl.dsl.optila.{OptiLAScalaCodeGenPkg, OptiLACudaCodeGenPkg, OptiLACCodeGenPkg, OptiLACodeGenBase, OptiLACodeGenScala, OptiLACodeGenCuda, OptiLACodeGenC}
+import ppl.dsl.optila.{OptiLAApplication}
+import ppl.dsl.optila.{OptiLAScalaOpsPkg, OptiLAScalaOpsPkgExp, OptiLA, OptiLAExp, OptiLACompiler, OptiLALift}
+import ppl.dsl.optila.{OptiLAScalaCodeGenPkg, OptiLACudaCodeGenPkg, OptiLACCodeGenPkg, OptiLACodeGenBase, OptiLACodeGenScala, OptiLACodeGenCuda, OptiLACodeGenC}
 
 /**
  * DSL specific
@@ -37,7 +37,7 @@ trait OptiCVXApplicationRunner extends OptiCVXApplication with DeliteApplication
 
 // ex. trait GDA extends OptiMLApplication
 //trait OptiMLApplication extends OptiLAApplication with OptiML with OptiMLLift with OptiMLLibrary {
-trait OptiCVXApplication extends OptiCVX with OptiCVXLift {
+trait OptiCVXApplication extends OptiLAApplication with OptiCVX with OptiCVXLift {
   var args: Rep[Array[String]]
   def main(): Unit
 }
@@ -87,7 +87,8 @@ trait OptiCVXScalaCodeGenPkg extends ScalaGenDSLOps
 // 
 //   this: OptiMLApplication =>
 // }
-trait OptiCVX extends OptiCVXScalaOpsPkg
+trait OptiCVX extends OptiLA
+  with OptiCVXScalaOpsPkg
   with OptVarOps
   with ExprShapeOps
   with ExprOps
@@ -119,7 +120,8 @@ trait OptiCVXCompiler extends OptiCVX {
 /**
  * These are the corresponding IR nodes for OptiML.
  */
-trait OptiCVXExp extends OptiCVXCompiler with OptiCVXScalaOpsPkgExp 
+trait OptiCVXExp extends OptiLAExp
+  with OptiCVXCompiler with OptiCVXScalaOpsPkgExp 
   with ScalaOpsPkgExp
   with DeliteOpsExp
   with OptVarOpsExp
@@ -211,7 +213,8 @@ trait OptiCVXCodeGenBase extends GenericFatCodegen with codegen.Utils {
 }
 
 // insert code generators here
-trait OptiCVXCodeGenScala extends OptiCVXCodeGenBase
+trait OptiCVXCodeGenScala extends OptiLACodeGenScala
+  with OptiCVXCodeGenBase
   with ScalaCodeGenPkg
   with ScalaGenDeliteOps
   with ScalaGenOptVarOps

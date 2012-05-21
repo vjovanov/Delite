@@ -17,8 +17,36 @@ trait ExprOps extends Base {
   def neg(x: Rep[Expr]): Rep[Expr]
   def shapeof(x: Rep[Expr]): Rep[ExprShape]
 
+  def prod(x: Rep[Expr], a: Rep[Double], sa: Signum): Rep[Expr]
+
   def infix_+(x: Rep[Expr], y: Rep[Expr]): Rep[Expr] = sum(x,y)
   def infix_-(x: Rep[Expr], y: Rep[Expr]): Rep[Expr] = sum(x,neg(y))
+
+  case class MultiplicativeScalar(val value: Rep[Double], val sign: Signum)
+
+  def infix_*(x: Rep[Expr], y: MultiplicativeScalar): Rep[Expr] = prod(x, y.value, y.sign)
+  def infix_*(x: MultiplicativeScalar, y: Rep[Expr]): Rep[Expr] = prod(y, x.value, x.sign)
+
+  //these lines are needed to fix some sort of conflict with OptiLA
+  def infix_*(x: Double, y: Rep[Expr]): Rep[Expr] = prod(y, unit(x), Signum.sgn(x))
+  def infix_*(y: Rep[Expr], x: Double): Rep[Expr] = prod(y, unit(x), Signum.sgn(x))
+
+  implicit def doubleToMultScalar(x: Double): MultiplicativeScalar
+    = MultiplicativeScalar(unit(x), Signum.sgn(x))
+
+  implicit def floatToMultScalar(x: Float): MultiplicativeScalar
+    = doubleToMultScalar(x.toDouble)
+
+  implicit def intToMultScalar(x: Int): MultiplicativeScalar
+    = doubleToMultScalar(x.toDouble)
+
+  implicit def repdoubleToMultScalar(x: Rep[Double]): MultiplicativeScalar
+    = MultiplicativeScalar(x, Signum.All)
+
+  def positive(x: Rep[Double]): MultiplicativeScalar
+
+  def negative(x: Rep[Double]): MultiplicativeScalar
+
 
   case class ExprOpsImplicitHack(x: Rep[Expr]) {
     def unary_-(): Rep[Expr] = neg(x)
@@ -34,11 +62,35 @@ trait ExprOps extends Base {
 
   def resolve(x: Rep[Expr]): Rep[Double]
 
+  def introspect(x: Rep[Expr]): Rep[Unit]
+  def introspect(x: Rep[Expr], s: String): Rep[Unit]
 }
 
 trait ExprOpsExp extends ExprOps
   with NumericOpsExp with OrderingOpsExp with BooleanOpsExp with DeliteOpsExp with EffectExp {
-  self: ExprShapeOpsExp with OptVarOpsExp with VectorOpsExp =>
+  self: ExprShapeOpsExp with OptVarOpsExp with VectorOpsExp with IfThenElseExp =>
+
+  def introspect(x: Rep[Expr]): Rep[Unit] = {
+    println("[" + Console.BLUE + "introspect" + Console.RESET + "] Unnamed expression has vexity " + Vexity.format(canonicalize(x).vexity()) + ".")
+  }
+
+  def introspect(x: Rep[Expr], s: String): Rep[Unit] = {
+    println("[" + Console.BLUE + "introspect" + Console.RESET + "] Expression \"" + s + "\" has vexity " + Vexity.format(canonicalize(x).vexity()) + ".")
+  }
+
+  def positive(x: Exp[Double]): MultiplicativeScalar = {
+    if(x < unit(0.0)) {
+      println("Warning: Scalar expression constrained to be positive is negative.")
+    }
+    MultiplicativeScalar(x, Signum.Positive)
+  }
+
+  def negative(x: Exp[Double]): MultiplicativeScalar = {
+    if(x > unit(0.0)) {
+      println("Warning: Scalar expression constrained to be negative is positive.")
+    }
+    MultiplicativeScalar(x, Signum.Negative)
+  }
 
   trait ExprTr {
     def get_Ax(x: Exp[CVXVector]): Exp[CVXVector]
@@ -146,6 +198,38 @@ trait ExprOpsExp extends ExprOps
   def neg(x: Exp[Expr]): Exp[Expr] = 
     ExprNegExp(x)
 
+  case class ExprProdExp(a: Exp[Expr], c: Exp[Double], sc: Signum) extends Def[Expr] with ExprTr {
+    def get_Ax(x: Exp[CVXVector]): Exp[CVXVector] = {
+      val ax = canonicalize(a).get_Ax(x)
+      vector_scale(ax,c)
+    }
+
+    def get_ATy(y: Exp[CVXVector], sz: Exp[Int]): Exp[CVXVector] = {
+      val ay = canonicalize(a).get_ATy(y,sz)
+      vector_scale(ay,c)
+    }
+
+    def get_b(): Exp[CVXVector] = {
+      val ab = canonicalize(a).get_b()
+      vector_scale(ab,c)
+    }
+    
+    def vexity(): Signum
+      = canonicalize(a).vexity() * sc
+    def shape(): Exp[ExprShape]
+      = canonicalize(a).shape()
+
+    def vars(): Set[OptVarTr]
+      = canonicalize(a).vars()
+
+    def resolve(): Exp[CVXVector]
+      = vector_scale(canonicalize(a).resolve(),c)
+
+    override def toString(): String
+      = "(" + canonicalize(a).toString() + "*" + c.toString() + ")"
+  }
+  def prod(x: Exp[Expr], a: Exp[Double], sa: Signum): Exp[Expr]
+    = ExprProdExp(x,a,sa)
 
   def shapeof(x: Exp[Expr]): Exp[ExprShape] =
     canonicalize(x).shape()
