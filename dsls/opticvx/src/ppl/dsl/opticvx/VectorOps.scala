@@ -17,7 +17,7 @@ trait VectorOps extends Base {
   
 }
 
-/*
+
 trait VectorOpsExp extends VectorOps
   with NumericOpsExp with OrderingOpsExp with BooleanOpsExp with EffectExp {
   self: ExprOpsExp with StringOpsExp with WhileExp with VariablesExp
@@ -103,6 +103,8 @@ trait VectorOpsExp extends VectorOps
   //convert a vector to matlab string representation (DEBUG)
   //case class VectorToStringMatlab(x: Exp[CVXVector]) extends Def[String]
   def vector_to_string_matlab(x: Exp[CVXVector]): Exp[String] = {
+    unit("[vector]")
+    /*
     val vi = var_new[Int](Const(0))
     val vacc = var_new[String](Const("["))
     __whileDo(readVar(vi) < vector_len(x) - Const(1), {
@@ -111,12 +113,13 @@ trait VectorOpsExp extends VectorOps
     })
     var_assign(vacc, readVar(vacc) + string_valueof(vector_at(x,vector_len(x)-Const(1))) + Const("]"))
     readVar(vacc)
+    */
   }
   
 }
-*/
 
 
+/*
 trait VectorOpsExp extends VectorOps
   with NumericOpsExp with OrderingOpsExp with BooleanOpsExp with EffectExp {
   self: ExprOpsExp with StringOpsExp with WhileExp with VariablesExp
@@ -203,12 +206,15 @@ trait VectorOpsExp extends VectorOps
     readVar(vacc)
   }
 }
+*/
 
 trait ScalaGenVectorOps extends ScalaGenBase {
   val IR: VectorOpsExp
   import IR._
 
   override def emitNode(sym: Sym[Any], rhs: Def[Any])(implicit stream: PrintWriter) = {
+    super.emitNode(sym, rhs)
+    /*
     rhs match {
       case VectorSumExp(x,y) =>
         stream.println("if(" + quote(x) + ".length != " + quote(y) + ".length) {")
@@ -308,6 +314,6 @@ trait ScalaGenVectorOps extends ScalaGenBase {
       case _ => 
         super.emitNode(sym, rhs)
     }
-    
+    */
   }
 }

@@ -82,25 +82,27 @@ cvx_end
 
     //val c = math_sqrt(4.0)
 
-    val x = variable()
-    val y = variable()
-    //val z = variable()
-    //val J = inv(x) - y
-    //y >= 1
-    //y <= 2
-    //x <= 1
-    //c == x + y - z
-    1 <= 2*min(x,y)
-    introspect(min(x,y),"min(x,y)")
-    introspect(inv(x+y),"inv(x+y)")
-    introspect(x-y,"x-y")
-    introspect(x)
-    val J = x + y*2
-    minimize (x + 2*y) over (x,y)
-    println("x = " + resolve(x))
-    println("y = " + resolve(y))
-    //println("z = " + resolve(z))
-    println("J = " + resolve(J))
+//     val x = variable()
+//     val y = variable()
+//     //val z = variable()
+//     //val J = inv(x) - y
+//     //y >= 1
+//     //y <= 2
+//     //x <= 1
+//     //c == x + y - z
+//     1 <= 2*min(x,y)
+//     ntrospect(min(x,y),"min(x,y)")
+//     introspect(inv(x+y),"inv(x+y)")
+//     introspect(x-y,"x-y")
+//     introspect(x)
+//     val J = x + y*2
+//     minimize (x + 2*y) over (x,y)
+//     println("x = " + resolve(x))
+//     println("y = " + resolve(y))
+//     //println("z = " + resolve(z))
+//     println("J = " + resolve(J))
+
+    println("max(1,2) = " + resolve(max(1.0,2.0)))
 
     //val t = variable()
     //val x = variable(vector(2))
