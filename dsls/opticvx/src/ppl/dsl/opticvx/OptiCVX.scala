@@ -162,53 +162,10 @@ trait OptiCVXCodeGenBase extends OptiLACodeGenBase { //with GenericFatCodegen wi
   val IR: DeliteApplication with OptiCVXExp
   override def initialDefs = IR.deliteGenerator.availableDefs
 
-  //def dsmap(line: String) = line
-  //override def dsmap(s: String) = {
-  //  super.dsmap(s.replaceAll("ppl.dsl.opticvx.datastruct", "generated"))
-  //}
-
   override def remap[A](m: Manifest[A]): String = dsmap(super.remap(m))
-  /*
-  val specialize = Set[String]()
-  def genSpec(f: File, outPath: String) = {}
-  
-  def getFiles(d: File): Array[File] = {
-    d.listFiles flatMap { f => if (f.isDirectory()) getFiles(f) else Array(f) }
-  }
-  */
+
   override def emitDataStructures(path: String) {
-    //val s = File.separator
-    //val dsRoot = Config.homeDir + s + "dsls" + s + "opticvx" + s + "src" + s + "ppl" + s + "dsl" + s + "opticvx" + s + "datastruct" + s + this.toString
-    //copyDataStructures(dsRoot, path, dsmap)
-
-    super.emitDataStructures(path) // get optila data structures
-    /*
-    val s = File.separator
-    val dsRoot = Config.homeDir + s+"dsls"+s+"cvx"+s+"src"+s+"ppl"+s+"dsl"+s+"cvx"+s+"datastruct"+s + this.toString
-
-    val dsDir = new File(dsRoot)
-    if (!dsDir.exists) return
-    val outDir = new File(path)
-    outDir.mkdirs()
-
-    val files = getFiles(dsDir)    
-    for (f <- files) {
-      if (f.isDirectory){
-        emitDataStructures(f.getPath())
-      }
-      else {
-        if (specialize contains (f.getName.substring(0, f.getName.indexOf(".")))) {
-          genSpec(f, path)
-        }
-        val outFile = path + s + f.getName
-        val out = new BufferedWriter(new FileWriter(outFile))
-        for (line <- scala.io.Source.fromFile(f).getLines) {
-          out.write(dsmap(line) + "\n")
-        }
-        out.close()
-      }
-    }
-    */
+    super.emitDataStructures(path)
   }
 }
 
@@ -235,12 +192,16 @@ trait OptiCVXCodeGenScala extends OptiLACodeGenScala
   with DeliteScalaGenAllOverrides { //with ScalaGenMLInputReaderOps {
   
   val IR: DeliteApplication with OptiCVXExp
-  
+
   override def dsmap(line: String) : String = {
-    var res = line.replaceAll("ppl.dsl.opticvx.datastruct", "generated")
+    if(line.contains("{x149: (")) println(line)
+    var res = super.dsmap(line)
+    res.replaceAll("ppl.dsl.opticvx.datastruct", "generated")
+    res = res.replaceAll("import ppl.dsl.optila.datastruct.scala._", "")     
     res = res.replaceAll("ppl.delite.framework.datastruct", "generated")
-    res = res.replaceAll("ppl.dsl.opticvx", "generated.scala")
-    super.dsmap(res)
+    res = res.replaceAll("ppl.dsl.opticvx", "generated.scala")      
+    res = res.replaceAllLiterally("ppl.dsl.optila.DenseVector[Double]","generated.scala.DoubleDenseVector")
+    res
   }
 
 }

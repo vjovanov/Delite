@@ -121,7 +121,7 @@ trait ObjectiveOpsExp extends ObjectiveOps
         case cc: ConstrainNonnegative =>
           val x = cc.x
           println("Processing nonnegative constraint...")
-          cone = CartesianProductCone(cone,NonNegativeSimplexCone(unit(1)))
+          cone = coneproduct(cone,NonNegativeSimplexCone(unit(1)))
           cone_exps :+= x
         case cc: ConstrainSecondOrderCone =>
           val x = cc.x
@@ -129,7 +129,7 @@ trait ObjectiveOpsExp extends ObjectiveOps
           println("Processing second-order cone constraint...")
           canonicalize(x.shape()) match {
             case ExprShapeVectorExp(n) =>
-              cone = CartesianProductCone(cone,SecondOrderCone(n))
+              cone = coneproduct(cone,SecondOrderCone(n))
             case _ =>
               throw new Exception("Internal Error: Invalid shape on SOC constraint.")
           }
@@ -140,7 +140,7 @@ trait ObjectiveOpsExp extends ObjectiveOps
           println("Processing semidefinite constraint...")
           canonicalize(x.shape()) match {
             case ExprShapeSMatrixExp(n) =>
-              cone = CartesianProductCone(cone,SemidefiniteCone(n))
+              cone = coneproduct(cone,SemidefiniteCone(n))
             case _ =>
               throw new Exception("Internal Error: Invalid shape on definiteness constraint.")
           }

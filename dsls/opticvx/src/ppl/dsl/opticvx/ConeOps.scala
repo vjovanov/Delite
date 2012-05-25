@@ -53,6 +53,21 @@ trait ConeOpsExp extends ConeOps
     }
   }
 
+  def coneproduct(C1: Cone, C2: Cone): Cone = {
+    if((C1.isInstanceOf[NullCone])&&(C2.isInstanceOf[NullCone])) {
+      NullCone()
+    }
+    else if(C1.isInstanceOf[NullCone]) {
+      C2
+    }
+    else if(C2.isInstanceOf[NullCone]) {
+      C1
+    }
+    else {
+      CartesianProductCone(C1,C2)
+    }
+  }
+
   case class NonNegativeSimplexCone(n: Exp[Int]) extends SelfDualCone {
     def size(): Exp[Int] = n
     def contains(x: Exp[CVXVector]): Exp[Boolean] = {
