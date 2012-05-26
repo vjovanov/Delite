@@ -57,4 +57,11 @@ trait OptiCVXLibrary extends OptiCVXApplication {
     minimize (z) over (z)
     z
   })
+
+  val geomean = cvxfun (concave) arguments (increasing, increasing) body ((x,y) => {
+    val v = variable(vector(1))
+    constrain_rotatedcone(v,x,y)
+    maximize (v(0)) over (v)
+    v(0)
+  })
 }

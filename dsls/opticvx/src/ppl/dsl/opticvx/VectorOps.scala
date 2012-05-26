@@ -119,6 +119,10 @@ trait VectorOpsExp extends VectorOps
   def vector1(u: Exp[Double]): Exp[CVXVector] = {
     densevector_obj_fromseq[Double](Seq(u))
   }
+  
+  def vector_fromseq(us: Exp[Seq[Double]]): Exp[CVXVector] = {
+    densevector_obj_fromseq[Double](us)
+  }
     
   //index the vector at the given index
   def vector_at(x: Exp[CVXVector], i: Exp[Int]): Exp[Double] = {

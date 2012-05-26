@@ -121,11 +121,11 @@ trait ConstraintOpsExp extends ConstraintOps
     if(!(cx.vexity() <= Vexity.affine)) {
       throw new Exception("Could not constrain non-affine expression as X-part of rotated cone.")
     }
-    if(!(cy.vexity() <= Vexity.affine)) {
-      throw new Exception("Could not constrain non-affine expression as Y-part of rotated cone.")
+    if(!(cy.vexity() <= Vexity.concave)) {
+      throw new Exception("Could not constrain non-concave expression as Y-part of rotated cone.")
     }
-    if(!(cz.vexity() <= Vexity.affine)) {
-      throw new Exception("Could not constrain non-affine expression as Z-part of rotated cone.")
+    if(!(cz.vexity() <= Vexity.concave)) {
+      throw new Exception("Could not constrain non-concave expression as Z-part of rotated cone.")
     }
     canonicalize(cx.shape()) match {
       case sh: ExprShapeVectorExp => 

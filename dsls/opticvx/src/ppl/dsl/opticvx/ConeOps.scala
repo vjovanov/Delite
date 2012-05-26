@@ -29,9 +29,9 @@ trait ConeOpsExp extends ConeOps
   }
 
   abstract class SelfDualCone extends Cone {
-    def contains_dual(y: Exp[CVXVector]): Exp[Boolean]
+    final def contains_dual(y: Exp[CVXVector]): Exp[Boolean]
       = contains(y)
-    def project_dual(y: Exp[CVXVector]): Exp[CVXVector]
+    final def project_dual(y: Exp[CVXVector]): Exp[CVXVector]
       = project(y)
   }
 
@@ -72,6 +72,17 @@ trait ConeOpsExp extends ConeOps
     else {
       CartesianProductCone(C1,C2)
     }
+  }
+
+  case class DualCone(C: Cone) extends Cone {
+    def size(): Exp[Int] = C.size()
+    def contains(x: Exp[CVXVector]): Exp[Boolean] = C.contains_dual(x)
+    def contains_dual(y: Exp[CVXVector]): Exp[Boolean] = C.contains(y)
+    def project(x: Exp[CVXVector]): Exp[CVXVector] = C.project_dual(x)
+    def project_dual(y: Exp[CVXVector]): Exp[CVXVector] = C.project(y)
+  }
+  def conedual(C: Cone): Cone = {
+    DualCone(C)
   }
 
   case class NonNegativeSimplexCone(n: Exp[Int]) extends SelfDualCone {

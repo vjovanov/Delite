@@ -150,9 +150,9 @@ trait ExprOpsExp extends ExprOps
     def asExp: Exp[Expr] = this
   }
   def reshape(x: Rep[Expr], sh: Rep[ExprShape]): Rep[Expr] = {
-    if(!(canonicalize(x).vexity() <= Vexity.affine)) {
-      throw new Exception("Error: Can't reshape a non-affine expression.")
-    }
+    //if(!(canonicalize(x).vexity() <= Vexity.affine)) {
+    //  throw new Exception("Error: Can't reshape a non-affine expression.")
+    //}
     if(canonicalize(x).size != canonicalize(sh).size) {
       println(unit("Error in reshape: size mismatch."))
     }
