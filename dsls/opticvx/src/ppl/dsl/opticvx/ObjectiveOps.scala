@@ -10,11 +10,14 @@ import java.io.PrintWriter
 
 
 trait ObjectiveOps extends Base {
+  self: ExprOps =>
 
   case class MinimizeObjStatement(x: Rep[Expr]) {
     def over(vs: Rep[OptVar]*) = minimize_over(x,vs)
   }
   def minimize(x: Rep[Expr]) = MinimizeObjStatement(x)
+
+  def maximize(x: Rep[Expr]) = minimize(-x)
 
   def minimize_over(x: Rep[Expr], vs: Seq[Rep[OptVar]]): Rep[Unit]
 }
@@ -135,6 +138,20 @@ trait ObjectiveOpsExp extends ObjectiveOps
           }
           cone_exps :+= x
           cone_exps :+= z
+        case cc: ConstrainRotatedCone =>
+          val x = cc.x
+          val y = cc.y
+          val z = cc.z
+          println("Processing rotated cone constraint...")
+          canonicalize(x.shape()) match {
+            case ExprShapeVectorExp(n) =>
+              cone = coneproduct(cone, SecondOrderCone(n+unit(1)))
+            case _ =>
+              throw new Exception("Internal Error: Invalid shape on rotated cone constraint.")
+          }
+          cone_exps :+= x
+          cone_exps :+= canonicalize((y.asExp - z.asExp)*0.5)
+          cone_exps :+= canonicalize((y.asExp + z.asExp)*0.5)
         case cc: ConstrainSemidefinite =>
           val x = cc.x
           println("Processing semidefinite constraint...")

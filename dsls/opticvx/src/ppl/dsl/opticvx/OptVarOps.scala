@@ -112,6 +112,8 @@ trait OptVarOpsExp extends OptVarOps
   class OptVarExp(val sh: Exp[ExprShape]) extends Def[OptVar] with OptVarTr {
     def shape(): Exp[ExprShape]
       = sh
+
+    def asExp: Exp[Expr] = this
   }
 
   def variable(sh: Exp[ExprShape]): Exp[OptVar]

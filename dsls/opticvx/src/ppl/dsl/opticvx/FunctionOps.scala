@@ -88,6 +88,8 @@ trait FunctionOpsExp extends FunctionOps
     def resolve(): Exp[CVXVector] = canonicalize(rv).resolve()
 
     override def toString(): String = canonicalize(rv).toString()
+
+    def asExp: Exp[Expr] = this
   }
 
   def cvxfun1apply(va: Signum,

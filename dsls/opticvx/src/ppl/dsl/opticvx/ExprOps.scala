@@ -13,6 +13,8 @@ import java.io.PrintWriter
 
 trait ExprOps extends Base {
 
+  def reshape(x: Rep[Expr], sh: Rep[ExprShape]): Rep[Expr]
+
   def sum(x: Rep[Expr], y: Rep[Expr]): Rep[Expr]
   def neg(x: Rep[Expr]): Rep[Expr]
   def shapeof(x: Rep[Expr]): Rep[ExprShape]
@@ -105,6 +107,8 @@ trait ExprOpsExp extends ExprOps
     def resolve(): Exp[CVXVector]
 
     def size: Exp[Int] = canonicalize(shape()).size
+
+    def asExp: Exp[Expr]
   }
 
   def canonicalize(x: Exp[Expr]): ExprTr = {
@@ -126,6 +130,33 @@ trait ExprOpsExp extends ExprOps
       case _ =>
         throw new Exception("Couldn't canonicalize node " + x)
     }
+  }
+
+  case class ExprReshapeExp(a: Exp[Expr], sh: Exp[ExprShape]) extends Def[Expr] with ExprTr {
+    def get_Ax(x: Exp[CVXVector]): Exp[CVXVector] = canonicalize(a).get_Ax(x)
+    def get_ATy(y: Exp[CVXVector], sz: Exp[Int]): Exp[CVXVector] = canonicalize(a).get_ATy(y,sz)
+    def get_b(): Exp[CVXVector] = canonicalize(a).get_b()
+
+    def resolve(): Exp[CVXVector] = canonicalize(a).resolve()
+
+    def vexity(): Signum = Vexity.affine
+
+    def shape(): Exp[ExprShape] = sh
+
+    def vars(): Set[OptVarTr] = canonicalize(a).vars()
+
+    override def toString(): String = canonicalize(a).toString()
+
+    def asExp: Exp[Expr] = this
+  }
+  def reshape(x: Rep[Expr], sh: Rep[ExprShape]): Rep[Expr] = {
+    if(!(canonicalize(x).vexity() <= Vexity.affine)) {
+      throw new Exception("Error: Can't reshape a non-affine expression.")
+    }
+    if(canonicalize(x).size != canonicalize(sh).size) {
+      println(unit("Error in reshape: size mismatch."))
+    }
+    ExprReshapeExp(x,sh)
   }
 
   case class ExprSumExp(a: Exp[Expr], b: Exp[Expr]) extends Def[Expr] with ExprTr {
@@ -160,6 +191,8 @@ trait ExprOpsExp extends ExprOps
 
     override def toString(): String
       = "(" + canonicalize(a).toString() + " + " + canonicalize(b).toString() + ")"
+  
+    def asExp: Exp[Expr] = this
   }
   def sum(x: Exp[Expr], y: Exp[Expr]): Exp[Expr] = 
     ExprSumExp(x,y)
@@ -194,6 +227,8 @@ trait ExprOpsExp extends ExprOps
 
     override def toString(): String
       = "(-" + canonicalize(a).toString() + ")"
+
+    def asExp: Exp[Expr] = this
   }
   def neg(x: Exp[Expr]): Exp[Expr] = 
     ExprNegExp(x)
@@ -227,6 +262,8 @@ trait ExprOpsExp extends ExprOps
 
     override def toString(): String
       = "(" + canonicalize(a).toString() + "*" + c.toString() + ")"
+
+    def asExp: Exp[Expr] = this
   }
   def prod(x: Exp[Expr], a: Exp[Double], sa: Signum): Exp[Expr]
     = ExprProdExp(x,a,sa)
@@ -260,6 +297,8 @@ trait ExprOpsExp extends ExprOps
 
     override def toString(): String
       = "(" + canonicalize(a).toString() + "[...])"
+
+    def asExp: Exp[Expr] = this
   }
   
   def indexat(x: Exp[Expr], i: Exp[Int]): Exp[Expr] = {

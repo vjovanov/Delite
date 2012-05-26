@@ -58,6 +58,8 @@ trait ConstExprOpsExp extends ConstExprOps
     def vars(): Set[OptVarTr] = Set[OptVarTr]()
 
     override def toString(): String = "input(" + u.toString + ")"
+
+    def asExp: Exp[Expr] = this
   } 
   def inputscalar(u: Exp[Double]): Exp[Expr] = ExprInputExp(u)
 }

@@ -44,6 +44,7 @@ trait SolverOpsExp extends SolverOps
     }
     
     def solve(): Exp[CVXVector] = {
+      //println(unit("sizes = (") + string_valueof(Az.m()) + unit(", ") + string_valueof(K.size()) + unit(")"))
       setup()
       //set up ADMM variables
       val x = var_new[CVXVector](vector_zeros(Ax.n()))
@@ -67,7 +68,7 @@ trait SolverOpsExp extends SolverOps
         val Ez = Az.get_Ax(readVar(x)) + readVar(z) + bz
         val Err = math_sqrt(vector_dot(Ex,Ex) + vector_dot(Ez,Ez))
         //println(unit("Err = ") + string_valueof(Err))
-        var_assign(loopdone, Err <= unit(1e-5))
+        var_assign(loopdone, (Err <= unit(1e-5))&&(niters >= unit(5)))
         //increment loop variable
         var_assign(niters, readVar(niters)+Const(1))
       })

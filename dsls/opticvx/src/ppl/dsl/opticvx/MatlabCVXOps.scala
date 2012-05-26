@@ -99,7 +99,7 @@ trait MatlabCVXOpsExp extends MatlabCVXOps
   def matlab_print_problem(obj: ExprTr, cs: Set[Constraint], sz: Exp[Int]): Exp[Unit] = {
     print(matlab_make_problem(obj,cs,sz))
   }
-
+  /*
   def terribleSolver(obj: ExprTr, cs: Set[Constraint], sz: Exp[Int]): Exp[CVXVector] = {
     val eps = Const(0.01)
     val objvect_uns = obj.get_ATy(vector1(Const(1)),sz)
@@ -132,6 +132,7 @@ trait MatlabCVXOpsExp extends MatlabCVXOps
     println(Const("converged!"))
     xx
   }
+  */
   
   //case class MatlabSolveExp(mpstr: Exp[String], sz: Exp[Int]) extends Def[CVXVector]
   
