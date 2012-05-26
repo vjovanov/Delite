@@ -32,17 +32,32 @@ trait VectorOpsExp extends VectorOps
   
   //sum of two vectors
   def vector_sum(x: Exp[CVXVector], y: Exp[CVXVector]): Exp[CVXVector] = {
-    vector_plus[Double,optila.DenseVector[Double]](x,y)
+    if(densevector_length[Double](x) == unit(0)) {
+      densevector_obj_zeros(unit(0))
+    }
+    else {
+      vector_plus[Double,optila.DenseVector[Double]](x,y)
+    }
   }
 
   //negation of a vector
   def vector_neg(x: Exp[CVXVector]): Exp[CVXVector] = {
-    vector_times_scalar[Double,optila.DenseVector[Double]](x,unit(-1.0))
+    if(densevector_length[Double](x) == unit(0)) {
+      densevector_obj_zeros(unit(0))
+    }
+    else {
+      vector_times_scalar[Double,optila.DenseVector[Double]](x,unit(-1.0))
+    }
   }
 
   //positive part of a vector
   def vector_positive_part(x: Exp[CVXVector]): Exp[CVXVector] = {
-    vector_map[Double,Double,optila.DenseVector[Double]](x, (a: Exp[Double]) => math_max(a,unit(0.0)))
+    if(densevector_length[Double](x) == unit(0)) {
+      densevector_obj_zeros(unit(0))
+    }
+    else {
+      vector_map[Double,Double,optila.DenseVector[Double]](x, (a: Exp[Double]) => math_max(a,unit(0.0)))
+    }
   }
   
   //vector is positive
@@ -52,17 +67,32 @@ trait VectorOpsExp extends VectorOps
   
   //minimum value of a vector
   def vector_minimum(x: Exp[CVXVector]): Exp[Double] = {
-    vector_min[Double](x)
+    if(densevector_length[Double](x) == unit(0)) {
+      Double.PositiveInfinity
+    }
+    else {
+      vector_min[Double](x)
+    }
   }
     
   //scale of a vector
   def vector_scale(x: Exp[CVXVector], s: Exp[Double]): Exp[CVXVector] = {
-    vector_times_scalar[Double,optila.DenseVector[Double]](x,s)
+    if(densevector_length[Double](x) == unit(0)) {
+      densevector_obj_zeros(unit(0))
+    }
+    else {
+      vector_times_scalar[Double,optila.DenseVector[Double]](x,s)
+    }
   }
     
   //dot product of two vectors
   def vector_dot(x: Exp[CVXVector], y: Exp[CVXVector]): Exp[Double] = {
-    vector_dot_product[Double](x,y)
+    if(densevector_length[Double](x) == unit(0)) {
+      unit(0.0)
+    }
+    else {
+      vector_dot_product[Double](x,y)
+    }
   }
     
   //select a subrange of values from a vector
@@ -103,8 +133,6 @@ trait VectorOpsExp extends VectorOps
   //convert a vector to matlab string representation (DEBUG)
   //case class VectorToStringMatlab(x: Exp[CVXVector]) extends Def[String]
   def vector_to_string_matlab(x: Exp[CVXVector]): Exp[String] = {
-    unit("[vector]")
-    /*
     val vi = var_new[Int](Const(0))
     val vacc = var_new[String](Const("["))
     __whileDo(readVar(vi) < vector_len(x) - Const(1), {
@@ -113,7 +141,6 @@ trait VectorOpsExp extends VectorOps
     })
     var_assign(vacc, readVar(vacc) + string_valueof(vector_at(x,vector_len(x)-Const(1))) + Const("]"))
     readVar(vacc)
-    */
   }
   
 }

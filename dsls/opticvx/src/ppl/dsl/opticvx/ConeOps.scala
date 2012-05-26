@@ -23,13 +23,16 @@ trait ConeOpsExp extends ConeOps
   abstract class Cone {
     def size(): Exp[Int]
     def contains(x: Exp[CVXVector]): Exp[Boolean]
+    def contains_dual(y: Exp[CVXVector]): Exp[Boolean]
     def project(x: Exp[CVXVector]): Exp[CVXVector]
-    def project_dual(x: Exp[CVXVector]): Exp[CVXVector]
+    def project_dual(y: Exp[CVXVector]): Exp[CVXVector]
   }
 
   abstract class SelfDualCone extends Cone {
-    def project_dual(x: Exp[CVXVector]): Exp[CVXVector]
-      = project(x)
+    def contains_dual(y: Exp[CVXVector]): Exp[Boolean]
+      = contains(y)
+    def project_dual(y: Exp[CVXVector]): Exp[CVXVector]
+      = project(y)
   }
 
   case class NullCone extends SelfDualCone {
@@ -44,6 +47,9 @@ trait ConeOpsExp extends ConeOps
     def select2(x: Exp[CVXVector]): Exp[CVXVector] = vector_select(x,C1.size(),C2.size())
     def contains(x: Exp[CVXVector]): Exp[Boolean] = {
       C1.contains(select1(x)) && C2.contains(select2(x))
+    }
+    def contains_dual(x: Exp[CVXVector]): Exp[Boolean] = {
+      C1.contains_dual(select1(x)) && C2.contains_dual(select2(x))
     }
     def project(x: Exp[CVXVector]): Exp[CVXVector] = {
       vector_cat(C1.project(select1(x)),C2.project(select2(x)))

@@ -200,7 +200,6 @@ trait OptiCVXCodeGenScala extends OptiLACodeGenScala
     res = res.replaceAll("import ppl.dsl.optila.datastruct.scala._", "")     
     res = res.replaceAll("ppl.delite.framework.datastruct", "generated")
     res = res.replaceAll("ppl.dsl.opticvx", "generated.scala")      
-    res = res.replaceAllLiterally("ppl.dsl.optila.DenseVector[Double]","generated.scala.DoubleDenseVector")
     res
   }
 

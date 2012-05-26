@@ -149,7 +149,7 @@ trait ObjectiveOpsExp extends ObjectiveOps
           //println("Deferring non-nonnegative constraint of type " + c.getClass())
       }
     }
-    println("Transformed to " + zero_exps.length + " total constraints.")
+    println("Transformed to " + zero_exps.length + " total equality and " + cone_exps.length + " total inequality constraints.")
     //convert into standard form
     val stdAx = new ExprSeqMatrix(zero_exps, problem_size)
     val stdAz = new ExprSeqMatrix(cone_exps, problem_size)
