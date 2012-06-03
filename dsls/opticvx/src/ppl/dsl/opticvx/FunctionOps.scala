@@ -97,7 +97,11 @@ trait FunctionOpsExp extends FunctionOps
                    fx: (Exp[Expr])=>Exp[Expr], 
                    a0: Exp[Expr])
                    : Exp[Expr] = {
-    CvxFunAppExp(fx(a0),va + ma0*canonicalize(a0).vexity())
+    val vf = va + ma0*canonicalize(a0).vexity()
+    if(vf == Vexity.none) {
+      throw new Exception("DCP Error in function: Could not conclude anything about result vexity.")
+    }
+    CvxFunAppExp(fx(a0),vf)
   }
 
   def cvxfun2apply(va: Signum, 
@@ -105,7 +109,11 @@ trait FunctionOpsExp extends FunctionOps
                    fx: (Exp[Expr],Exp[Expr])=>Exp[Expr], 
                    a0: Exp[Expr], a1: Exp[Expr])
                    : Exp[Expr] = {
-    CvxFunAppExp(fx(a0, a1),va + ma0*canonicalize(a0).vexity() + ma1*canonicalize(a1).vexity())
+    val vf = va + ma0*canonicalize(a0).vexity() + ma1*canonicalize(a1).vexity()
+    if(vf == Vexity.none) {
+      throw new Exception("DCP Error in function: Could not conclude anything about result vexity.")
+    }
+    CvxFunAppExp(fx(a0, a1),vf)
   }
 
 }
