@@ -194,7 +194,6 @@ trait OptiCVXCodeGenScala extends OptiLACodeGenScala
   val IR: DeliteApplication with OptiCVXExp
 
   override def dsmap(line: String) : String = {
-    if(line.contains("{x149: (")) println(line)
     var res = super.dsmap(line)
     res.replaceAll("ppl.dsl.opticvx.datastruct", "generated")
     res = res.replaceAll("import ppl.dsl.optila.datastruct.scala._", "")     
