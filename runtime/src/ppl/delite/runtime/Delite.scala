@@ -108,10 +108,9 @@ object Delite {
         executor.run(executable)
         EOP_Global.await //await the end of the application program
         PerformanceTimer.stop("all", false)
-        PerformanceTimer.print("all", globalStart, globalStartNanos)
-        // check if we are timing another component
-        if(Config.dumpStatsComponent != "all")
-          PerformanceTimer.print(Config.dumpStatsComponent, globalStart, globalStartNanos)
+        PerformanceTimer.printAll(globalStart, globalStartNanos)
+        if (Config.dumpProfile) PerformanceTimer.dumpProfile(globalStart, globalStartNanos)
+        if (Config.dumpStats) PerformanceTimer.dumpStats()        
 	    System.gc()
       }
 
@@ -123,7 +122,7 @@ object Delite {
       executor.shutdown()
     }
     catch {
-      case i: InterruptedException => abnormalShutdown(); exit(1) //a worker thread threw the original exception        
+      case i: InterruptedException => abnormalShutdown(); throw i //a worker thread threw the original exception        
       case e: Exception => abnormalShutdown(); throw e       
     }
     finally {

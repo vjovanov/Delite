@@ -59,13 +59,13 @@ def run(deg, params, opts):
     java_opts = java_opts + " -Ddelite.home=" + delitecommon.DELITE_HOME + " -Ddelite.threads=" + str(opts.num_threads) + " -Ddelite.gpus=" + opts.num_gpus + " -Ddelite.runs=" + opts.num_runs
     
     if opts.profile == True:
-        java_opts = java_opts + " -Dstats.output.dir=profile -Dstats.dump.component=prof -Ddelite.debug.profile=true"
+        java_opts = java_opts + " -Dprofile.output.dir=profile -Dprofile.dump=true -Ddelite.debug.profile=true"
 
     delitecommon.scala_virt_version = "scala-2.10"
         
     # add classpaths
     cp = " -cp "
-    cp = cp + delitecommon.DELITE_HOME + "/runtime/target/" + delitecommon.scala_virt_version + "/classes" + os.pathsep
+    cp = cp + delitecommon.DELITE_HOME + "/runtime/target/" + delitecommon.scala_major_id + "/classes" + os.pathsep
     cp = cp + delitecommon.SCALA_VIRT_HOME + "/scala-library.jar" + os.pathsep
     cp = cp + delitecommon.SCALA_VIRT_HOME + "/scala-compiler.jar" + os.pathsep
     # lms math ops generated apache math for performance

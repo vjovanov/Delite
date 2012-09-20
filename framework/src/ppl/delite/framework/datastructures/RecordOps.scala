@@ -1,6 +1,7 @@
 package ppl.delite.framework.datastructures
 
 import java.io.PrintWriter
+import scala.reflect.SourceContext
 import scala.virtualization.lms.common._
 
 trait RecordOps extends Base {
@@ -11,7 +12,7 @@ trait RecordOps extends Base {
     
   def newRecord[T:Manifest](fields: Seq[(String,Boolean,Rep[T] => Rep[_])]): Rep[T]
   
-  implicit def RepToRecordOps(r: Rep[Record]) = new RecordOpsCls(r)
+  implicit def repToRecordOps(r: Rep[Record]) = new RecordOpsCls(r)
   
   class RecordOpsCls(r: Rep[Record]) {
     def selectDynamic[T:Manifest](n: String): Rep[T] = recordFieldAccess[T](r,n)
@@ -29,10 +30,14 @@ trait RecordOps extends Base {
   
 }
 
-trait RecordOpsExp extends RecordOps with BaseExp {
+trait RecordOpsExp extends RecordOps with EffectExp {
     
-  case class CreateRecord[T:Manifest](fields: Seq[(String,Rep[_])]) extends Def[T]
-  case class RecordFieldAccess[T:Manifest](res: Rep[Record], field: String) extends Def[T]
+  case class CreateRecord[T:Manifest](fields: Seq[(String,Rep[_])]) extends Def[T] {
+    val m = manifest[T]
+  }
+  case class RecordFieldAccess[T:Manifest](res: Rep[Record], field: String) extends Def[T] {
+    val m = manifest[T]
+  }
     
   def newRecord[T:Manifest](fields: Seq[(String,Boolean,Rep[T] => Rep[_])]): Rep[T] = {
     val x: Sym[T] = fresh[T]
@@ -43,10 +48,21 @@ trait RecordOpsExp extends RecordOps with BaseExp {
   }
   
   def recordFieldAccess[T:Manifest](r: Rep[Record], field: String): Rep[T] = RecordFieldAccess[T](r,field)
-    
+  
+  override def mirror[A:Manifest](e: Def[A], f: Transformer)(implicit pos: SourceContext): Exp[A] = e match {
+    case d@CreateRecord(fields) => toAtom(CreateRecord(fields.map(t=>(t._1,f(t._2))))(d.m))
+    case d@RecordFieldAccess(r,field) => recordFieldAccess(f(r),field)(d.m)
+    case _ => super.mirror(e,f)
+  }
+
   override def syms(e: Any): List[Sym[Any]] = e match { 
     case CreateRecord(fields) => fields flatMap{case (n, rhs) => syms(rhs)} toList
     case _ => super.syms(e)
+  }
+
+  override def readSyms(e: Any): List[Sym[Any]] = e match { 
+    case CreateRecord(fields) => fields flatMap{case (n, rhs) => readSyms(rhs)} toList
+    case _ => super.readSyms(e)
   }
   
   override def boundSyms(e: Any): List[Sym[Any]] = e match {    
@@ -67,7 +83,7 @@ trait ScalaGenRecordOps extends ScalaGenBase {
     val IR:RecordOpsExp
     import IR._
 
-    override def emitNode(sym: Sym[Any], rhs: Def[Any])(implicit stream: PrintWriter) = rhs match {
+    override def emitNode(sym: Sym[Any], rhs: Def[Any]) = rhs match {
         case CreateRecord(fields) => emitValDef(sym, "new {\n" + fields.map{case (n,rhs) => "\tval " + n + " = " + quote(rhs)}.reduceLeft[String]{(acc, n) => acc + "\n" + n} + "\n}")
         case RecordFieldAccess(res, field) => emitValDef(sym, quote(res) + "." + field + " //field access")
         case _ => super.emitNode(sym,rhs)

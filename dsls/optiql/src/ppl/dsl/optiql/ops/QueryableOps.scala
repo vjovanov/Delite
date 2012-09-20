@@ -46,13 +46,13 @@ trait QueryableOpsExp extends QueryableOps with BaseFatExp {
   this: QueryableOps with OptiQLExp =>
 
   case class QueryableWhere[TSource:Manifest](in: Exp[DataTable[TSource]], cond: Exp[TSource] => Exp[Boolean]) extends DeliteOpFilter[TSource, TSource,DataTable[TSource]] {
-    def alloc = DataTable[TSource]()
+    override def alloc(size: Exp[Int]) = DataTable[TSource](size)
     def func = e => e
     val size = in.size
   }
      
   case class QueryableSelect[TSource:Manifest, TResult:Manifest](in: Exp[DataTable[TSource]], func: Exp[TSource] => Exp[TResult]) extends DeliteOpMap[TSource, TResult, DataTable[TResult]] {
-    def alloc = DataTable[TResult](in.size)
+    override def alloc(size: Exp[Int]) = DataTable[TResult](size)
     val size = in.size
   }
   
@@ -130,7 +130,7 @@ trait ScalaGenQueryableOps extends ScalaGenFat {
   val IR: QueryableOpsExp with OptiQLExp
   import IR._
 
-  override def emitNode(sym: Sym[Any], rhs: Def[Any])(implicit stream: PrintWriter) = rhs match {
+  override def emitNode(sym: Sym[Any], rhs: Def[Any]) = rhs match {
     case HackQueryableGroupBy(s, v, k) =>  {
       stream.println("val " + quote(sym) + " =  " + quote(s) + ".GroupBy( " + quote(v) + " => {")   
       emitBlock(k)   

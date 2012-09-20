@@ -21,6 +21,7 @@ trait DeliteTestConfig {
   val verbose = props.getProperty("tests.verbose", "false").toBoolean
   val verboseDefs = props.getProperty("tests.verboseDefs", "false").toBoolean
   val threads = props.getProperty("tests.threads", "1")
+  val cacheSyms = props.getProperty("tests.cacheSyms", "true").toBoolean
   val javaHome = new File(props.getProperty("java.home", ""))
   val scalaHome = new File(props.getProperty("scala.vanilla.home", ""))
   val runtimeClasses = new File(props.getProperty("runtime.classes", ""))
@@ -60,16 +61,19 @@ trait DeliteSuite extends Suite with DeliteTestConfig {
     println("STAGING...")
     val save = Config.degFilename
     val buildDir = Config.buildDir
+    val saveCacheSyms = Config.cacheSyms
     val generatedDir = "generated" + java.io.File.separator + uniqueTestName
     try {
       Config.degFilename = degName
       Config.buildDir = generatedDir
+      Config.cacheSyms = cacheSyms
       val screenOrVoid = if (verbose) System.out else new PrintStream(new ByteArrayOutputStream())
       Console.withOut(screenOrVoid) {
         app.main(Array())
         if (verboseDefs) app.globalDefs.foreach { d => //TR print all defs
           println(d)
-          val info = d.sym.sourceInfo.drop(3).takeWhile(_.getMethodName != "main")
+          val s = d match { case app.TP(sym,_) => sym; case app.TTP(syms,_,_) => syms(0); case _ => sys.error("unknown Stm type: " + d) }
+          val info = s.sourceInfo.drop(3).takeWhile(_.getMethodName != "main")
           println(info.map(s => s.getFileName + ":" + s.getLineNumber).distinct.mkString(","))
         }
         //assert(!app.hadErrors) //TR should enable this check at some time ...
@@ -79,6 +83,7 @@ trait DeliteSuite extends Suite with DeliteTestConfig {
       assert(Config.buildDir == generatedDir)
       Config.degFilename = save
       Config.buildDir = buildDir
+      Config.cacheSyms = saveCacheSyms
     }
   }
 
