@@ -3,7 +3,7 @@ package ppl.apps.graph.TestApp
 import ppl.dsl.optigraph._
 import ppl.delite.framework.DeliteApplication
 
-object GraphAppRunner extends OptiGraphApplicationRunner with OptiGraphTests
+/*object GraphAppRunner extends OptiGraphApplicationRunner with OptiGraphTests
 
 /*
  *  -----------------------------------------
@@ -1045,7 +1045,7 @@ trait OptiGraphTests extends OptiGraphApplication {
     while(cond) {     
       diff.setValue(0.0)
       for(t <- G.Nodes) {
-        val Val: Rep[Double] = ((1.0 - d) / N) + d * Sum(t.InNbrs){
+        val Val: Rep[Double] = ((1.0 - d) / N) + unit(d) * Sum(t.InNbrs){
           w => PR(w) / deg(w.Id)//w.OutDegree
         }
         //val Val = v
@@ -1180,4 +1180,4 @@ trait OptiGraphTests extends OptiGraphApplication {
     //BC()
   }
 }
-
+*/

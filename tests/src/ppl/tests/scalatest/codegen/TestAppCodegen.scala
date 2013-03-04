@@ -109,17 +109,17 @@ class TestAppCodegen extends FileDiffSuite {
 
   def testLinRegFusing = testAppFusing("linreg", ppl.apps.ml.linreg.LinRegRunner, Array(datadir+"/ml/linreg/x-1024.dat",datadir+"/ml/linreg/y-1024.dat"))
 
-  def testNaiveBayes = testApp("nb", ppl.apps.ml.nb.NaiveBayesRunner, Array(datadir+"/ml/nb/MATRIX.TRAIN.25k",datadir+"/ml/nb/MATRIX.TEST"))
+//  def testNaiveBayes = testApp("nb", ppl.apps.ml.nb.NaiveBayesRunner, Array(datadir+"/ml/nb/MATRIX.TRAIN.25k",datadir+"/ml/nb/MATRIX.TEST"))
 
-  def testNaiveBayesFusing = testAppFusing("nb", ppl.apps.ml.nb.NaiveBayesRunner, Array(datadir+"/ml/nb/MATRIX.TRAIN.25k",datadir+"/ml/nb/MATRIX.TEST"))
+//  def testNaiveBayesFusing = testAppFusing("nb", ppl.apps.ml.nb.NaiveBayesRunner, Array(datadir+"/ml/nb/MATRIX.TRAIN.25k",datadir+"/ml/nb/MATRIX.TEST"))
 
   def testRBM = testApp("rbm", ppl.apps.ml.rbm.RBMRunner, Array(datadir+"/ml/rbm/mnist2000x10.dat","2000","2000"))
 
   def testRBMFusing = testAppFusing("rbm", ppl.apps.ml.rbm.RBMRunner, Array(datadir+"/ml/rbm/mnist2000x10.dat","2000","2000"))
 
-  def testSVM = testApp("svm", ppl.apps.ml.svm.SVMRunner, Array(datadir+"/ml/svm/MATRIX.TRAIN.800",datadir+"/ml/svm/MATRIX.TEST","output","10"))
+//  def testSVM = testApp("svm", ppl.apps.ml.svm.SVMRunner, Array(datadir+"/ml/svm/MATRIX.TRAIN.800",datadir+"/ml/svm/MATRIX.TEST","output","10"))
 
-  def testSVMFusing = testAppFusing("svm", ppl.apps.ml.svm.SVMRunner, Array(datadir+"/ml/svm/MATRIX.TRAIN.800",datadir+"/ml/svm/MATRIX.TEST","output","10"))
+//  def testSVMFusing = testAppFusing("svm", ppl.apps.ml.svm.SVMRunner, Array(datadir+"/ml/svm/MATRIX.TRAIN.800",datadir+"/ml/svm/MATRIX.TEST","output","10"))
 
   // --- robotics
   

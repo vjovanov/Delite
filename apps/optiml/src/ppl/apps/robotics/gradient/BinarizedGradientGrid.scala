@@ -4,7 +4,8 @@ import ppl.dsl.optiml._
 import ppl.dsl.optiml.application._
 import ppl.delite.framework.DeliteApplication
 
-trait BinarizedGradientGridFuncs {
+/*
+ * trait BinarizedGradientGridFuncs {
   this: OptiMLApplication with BinarizedGradientPyramidFuncs with BinarizedGradientTemplateFuncs =>
 
   // The radius of the template
@@ -358,4 +359,4 @@ for (i <- 0 until 1) { //TR ?
     output
   }
 */
-}
+}*/

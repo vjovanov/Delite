@@ -23,7 +23,7 @@ package ppl.apps.minimsmbuilder
 
 import reflect.{Manifest, SourceContext}
 import ppl.dsl.optiml._
-
+/*
 
 //
 //=============================================================================================
@@ -179,4 +179,4 @@ trait DirectSolver extends OptiMLApplication {
 
     result
   }
-}
+}*/

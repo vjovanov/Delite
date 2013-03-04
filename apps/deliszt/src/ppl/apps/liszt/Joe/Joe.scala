@@ -3,7 +3,7 @@ package ppl.apps.liszt.Joe
 import ppl.dsl.deliszt._
 import ppl.dsl.deliszt.MetaInteger._
 
-object JoeRunner extends DeLisztApplicationRunner with Joe
+/*object JoeRunner extends DeLisztApplicationRunner with Joe
 
 trait Joe extends DeLisztApplication {  
   object NavierStokesSolvers {
@@ -783,4 +783,4 @@ trait Joe extends DeLisztApplication {
 		Print("MyJoe()") 
     JoeWithModels.run()
 	}
-}
+}*/

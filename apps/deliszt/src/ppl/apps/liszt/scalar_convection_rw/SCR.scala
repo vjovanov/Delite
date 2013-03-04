@@ -3,7 +3,7 @@ package ppl.apps.liszt.scalar_convection_rw
 import ppl.dsl.deliszt._
 import ppl.dsl.deliszt.MetaInteger._
 
-object SCRRunner extends DeLisztApplicationRunner with SCR
+/*object SCRRunner extends DeLisztApplicationRunner with SCR
 
 trait SCR extends DeLisztApplication {
   var position : Rep[Field[Vertex,Vec[_3,Float]]] = null
@@ -244,3 +244,4 @@ trait SCR extends DeLisztApplication {
     }
   }
 }
+*/

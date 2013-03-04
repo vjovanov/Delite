@@ -11,7 +11,7 @@ import ppl.dsl.optiml._
  * Stanford University
  */
 
-object LBPDenoiseRunner extends OptiMLApplicationRunner with LBPDenoise
+/*object LBPDenoiseRunner extends OptiMLApplicationRunner with LBPDenoise
 
 trait LBPDenoise extends OptiMLApplication {
   def print_usage = {
@@ -222,7 +222,8 @@ trait LBPDenoise extends OptiMLApplication {
 
         var pred = 0
         while (pred < numRings) {
-          potential(pred) = 0.0 - ((obs - pred) * (obs - pred) / (2.0 * sigmaSq))
+          // TODO unit(0.0) converts it into a compiler crash 
+          potential(pred) = unit(0.0) - ((obs - pred) * (obs - pred) / (2.0 * sigmaSq))
           pred += 1
         }
 
@@ -481,3 +482,4 @@ trait LBPDenoise extends OptiMLApplication {
   // }
   
 }
+*/

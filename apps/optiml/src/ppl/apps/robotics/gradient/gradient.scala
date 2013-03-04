@@ -4,7 +4,7 @@ import ppl.dsl.optiml._
 import ppl.dsl.optiml.application._
 import ppl.delite.framework.DeliteApplication
 
-object gradientRunner extends OptiMLApplicationRunner with gradient
+/*object gradientRunner extends OptiMLApplicationRunner with gradient
 
 trait gradient extends OptiMLApplication
   with BinarizedGradientGridFuncs with BinarizedGradientPyramidFuncs with BinarizedGradientTemplateFuncs {
@@ -32,3 +32,4 @@ trait gradient extends OptiMLApplication
     toc()
   }
 }
+*/

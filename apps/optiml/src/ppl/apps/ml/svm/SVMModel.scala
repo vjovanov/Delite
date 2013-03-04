@@ -13,7 +13,7 @@ package ppl.apps.ml.svm
 
 import ppl.delite.framework.DeliteApplication
 import ppl.dsl.optiml._
-
+/* Adding unit in the line changed this from an error to a compiler crash.
 trait SVMModel { this: OptiMLApplication =>
 
   // model data
@@ -65,7 +65,7 @@ trait SVMModel { this: OptiMLApplication =>
         val f_i = (alphasOld*Y*(X*X(i).t)).sum + b //TR M*V alph0
         val E_i = f_i - Y(i)
 
-        if (((Y(i)*E_i < -1.*tol) && (alphasOld(i) < C)) || ((Y(i)*E_i > tol) && (alphasOld(i) > 0))){
+        if (((Y(i)*E_i < unit(-1).*tol) && (alphasOld(i) < C)) || ((Y(i)*E_i > tol) && (alphasOld(i) > 0))){
           // select a candidate j from the remaining numSamples-i samples at random
           var j = floor(random[Double]*(numSamples-1)).AsInstanceOf[Int]+1
           while (j == i){
@@ -183,4 +183,4 @@ trait SVMModel { this: OptiMLApplication =>
     out += b
     writeVector(out, filename)
   }
-}
+}*/

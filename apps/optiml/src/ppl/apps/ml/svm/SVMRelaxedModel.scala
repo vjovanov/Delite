@@ -15,7 +15,7 @@ import ppl.delite.framework.DeliteApplication
 import ppl.dsl.optiml._
 import scala.reflect.SourceContext
 
-trait SVMRelaxedModels { this: OptiMLApplication =>
+/*trait SVMRelaxedModels { this: OptiMLApplication =>
   
   class SVMRelaxedModel {
   
@@ -180,4 +180,4 @@ trait SVMRelaxedModels { this: OptiMLApplication =>
   }
 
   }
-}
+}*/

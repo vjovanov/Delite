@@ -10,7 +10,7 @@ import ppl.dsl.optiml.OptiMLApplicationRunner
  * Stanford University
  */
 
-object LBPDenoiseRawRunner extends OptiMLApplicationRunner with LBPDenoiseRaw
+/*object LBPDenoiseRawRunner extends OptiMLApplicationRunner with LBPDenoiseRaw
 
 trait LBPDenoiseRaw extends LBPDenoise {
   override def print_usage = {
@@ -24,4 +24,4 @@ trait LBPDenoiseRaw extends LBPDenoise {
     MLOutputWriter.writeImgPgm(img, "check.pgm")
     img
   }
-}
+}*/

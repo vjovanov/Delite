@@ -24,7 +24,7 @@ package ppl.apps.minimsmbuilder
 import reflect.{Manifest, SourceContext}
 import ppl.dsl.optiml._
 
-object MiniMSMApplicationRunner extends OptiMLApplicationRunner with Clarans 
+/*object MiniMSMApplicationRunner extends OptiMLApplicationRunner with Clarans
   
 trait Clarans extends OptiMLApplication with TheoData with DirectSolver {
   lazy val verbose = true
@@ -357,7 +357,7 @@ trait Clarans extends OptiMLApplication with TheoData with DirectSolver {
         toc(out)      
         println("-- test finished")
         println("out.length: " + out.length)
-        out(0::10).pprint                
+        out(0::10).pprint
       }
     }
     else {
@@ -412,4 +412,4 @@ trait Clarans extends OptiMLApplication with TheoData with DirectSolver {
     }
   }
   
-}
+}*/
