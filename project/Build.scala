@@ -7,18 +7,13 @@ object DeliteBuild extends Build {
   // -DshowSuppressedErrors=false
   System.setProperty("showSuppressedErrors", "false")
 
-  // FIXME: custom-built scalatest
-  val dropboxScalaTestRepo = "Dropbox" at "http://dl.dropbox.com/u/12870350/scala-virtualized"
-
-  //val scalatestCompile = "org.scalatest" % "scalatest_2.10.0-virtualized-SNAPSHOT" % "1.6.1-SNAPSHOT" intransitive()
-  val scalatestCompile = "org.scalatest" % "scalatest_2.10.0-M7" % "1.9-2.10.0-M7-B1" intransitive()
+  val scalatestCompile = "org.scalatest" % "scalatest_2.10" % "2.0.M5b" intransitive()
   val scalatest = scalatestCompile % "test" 
 
   //val virtScala = "2.10.0-M1-virtualized" //"2.10.0-virtualized-SNAPSHOT"
-  val virtScala = "2.10.0-M7"
+  val virtScala = "2.10.0"
   val virtBuildSettingsBase = Defaults.defaultSettings ++ Seq(
     resolvers += ScalaToolsSnapshots, 
-    resolvers += dropboxScalaTestRepo,
     organization := "stanford-ppl",
     scalaOrganization := "org.scala-lang.virtualized",
     //scalaHome := Some(file("/Users/tiark/scala-virt-m7/build/pack")),

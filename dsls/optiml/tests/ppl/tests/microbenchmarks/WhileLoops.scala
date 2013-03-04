@@ -18,7 +18,13 @@ trait WhileLoopsBenchmark extends OptiMLApplication {
 				v += 42
 			}
 			v(100) = v.sort.apply(100) // this is unfortunate
-			v(i) = x + y + random[Double]
+			// TODO compiler crash
+     		// v(i) = x + y + random[Double]
+			// workaround
+			val rand = random[Double]
+			val xy: Rep[Double] = unit(x) + y
+			v(i) = xy + rand
+			
 			i += 1
 		}
 	}

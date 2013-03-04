@@ -55,8 +55,8 @@ trait TPCH extends OptiQLApplication {
       val lineStatus = g.key._2
       val sumQty = g.Sum(_.l_quantity)
       val sumBasePrice = g.Sum(_.l_extendedprice)
-      val sumDiscountedPrice = g.Sum(l => l.l_extendedprice * (1.0d - l.l_discount))
-      val sumCharge = g.Sum(l=> l.l_extendedprice * (1.0d - l.l_discount) * (1.0d + l.l_tax))
+      val sumDiscountedPrice = g.Sum(l => l.l_extendedprice * (unit(1.0d) - l.l_discount))
+      val sumCharge = g.Sum(l=> l.l_extendedprice * (unit(1.0d) - l.l_discount) * (unit(1.0d) + l.l_tax))
       val avgQty = g.Average(_.l_quantity)
       val avgPrice = g.Average(_.l_extendedprice)
       val avgDiscount = g.Average(_.l_discount)

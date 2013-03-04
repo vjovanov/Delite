@@ -216,7 +216,11 @@ trait Smooth extends DeLisztApplication {
     val cr = cos(lambda*R)
     val sr = sin(lambda*R)
 
-    val uhat =  omega*ct+K*pow(ct,unit(R-1.0))*(st*st*R-ct*ct)*cr
+//    val tmp = (st*st*unit(R)-ct*ct)*unit(cr)
+    val tmp = (st*st*unit(R)-ct*ct)*cr
+    
+    
+    val uhat =  omega*ct+unit(K)*pow(ct,unit(R-1.0))*tmp
     val vhat = -K*R*pow(ct,unit(R-1.0))*st*sr
     
     val ux = -uhat*sin(lambda)-vhat*sin(theta)*cos(lambda)
@@ -241,8 +245,14 @@ trait Smooth extends DeLisztApplication {
     val ct = cos(theta)
     val st = sin(theta)
 
-    val atheta = omega*0.5*(2.0+omega)*ct*ct+0.25*K*K*pow(ct,unit(2.0*R))*(ct*ct*(R+1)+(2*R*R-R-2)-unit(2.0*R*R)/(ct*ct+1.0e-12))
-      
+    // TODO Compiler crash
+    // val atheta = omega*0.5*(2.0+omega)*ct*ct+0.25*K*K*pow(ct,unit(2.0*R))*(ct*ct*(R+1)+(2*R*R-R-2)-unit(2.0*R*R)/(ct      
+
+    val b = unit(0.25*K*K)*pow(ct,unit(2.0*R))
+    val c = (ct*ct*(R+1)+(2*R*R-R-2)-unit(2.0*R*R)/(ct*ct+1.0e-12))
+    
+    val atheta = omega*unit(0.5)*(2.0+omega)*ct*ct+b*c
+    
     val btheta = 2*(1.0+omega)*K/(R+1)/(R+2)*pow(ct,unit(1.0*R))*(unit(R*R+2.0*R+2)-ct*ct*(R+1)*(R+1))
     val ctheta = 0.25*K*K*pow(ct,unit(2.0*R))*(ct*ct*(R+1)-R-2)
 

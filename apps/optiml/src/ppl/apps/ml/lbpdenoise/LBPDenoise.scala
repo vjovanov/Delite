@@ -416,7 +416,11 @@ trait LBPDenoise extends OptiMLApplication {
   // This = other * damping + this * (1-damping)
   def unaryFactorDamp(a: Rep[DenseVector[Double]], b: Rep[DenseVector[Double]], damping: Rep[Double]): Rep[DenseVector[Double]] = {
     if (damping != 0) {
-      (b.exp * damping + a.exp * (1.0 - damping)) map {log(_)}
+      //  TODO (VJ) compiler crash
+      // (b.exp * damping + a.exp * (1.0 - damping)) map {log(_)}
+      val tmp = b.exp * damping
+      val vector = (tmp + a.exp * (unit(1.0) - damping))
+      vector map(log)
     }
     else {
       a
@@ -429,8 +433,9 @@ trait LBPDenoise extends OptiMLApplication {
     }
     
     a */
-    
-    a.mzip(b){(x:Rep[Double],y:Rep[Double]) => log(exp(x)*(1.0-damping)+exp(y)*damping)}
+    // TODO Compiler crash
+//    a.mzip(b){(x:Rep[Double],y:Rep[Double]) => log(exp(x)*(1.0)-damping)+exp(y)*damping)}
+    a.mzip(b){(x:Rep[Double],y:Rep[Double]) => log(exp(x)*(unit(1.0)-damping)+exp(y)*damping) }
   }
   
   // Compute the residual between two unary factors

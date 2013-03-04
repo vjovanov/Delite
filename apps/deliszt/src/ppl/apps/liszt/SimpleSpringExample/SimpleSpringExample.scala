@@ -15,7 +15,7 @@ trait SSS extends DeLisztApplication {
     val l = length(L)
 
   // Conversions suck
-    return -(L/l) * (Ks*(l-rl).floatValueL + Kd*(dot(L,W)/l))
+    return -(L/l) * (Ks*(l-rl).floatValueL + unit(Kd)*(dot(L,W)/l))
   }
 
   def main() {
