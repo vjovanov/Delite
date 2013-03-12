@@ -12,6 +12,7 @@ import ppl.delite.framework.datastructures.DeliteArray
 import ppl.delite.framework.Util._
 import ppl.dsl.optila._
 
+
 trait VectorOps extends Variables {
   this: OptiLA =>
 
@@ -467,7 +468,12 @@ trait VectorOps extends Variables {
   def vector_groupby[A:Manifest,K:Manifest,VA<:Vector[A]:Manifest](x: Interface[Vector[A]], pred: Rep[A] => Rep[K])(implicit b: VectorBuilder[A,VA], ctx: SourceContext): Rep[DenseVector[VA]]             
 }
 
-trait VectorOpsExp extends VectorOps with DeliteCollectionOpsExp {
+trait VectorOpsExp extends VectorOpsExpSmaller1 with VectorOpsExpSmaller2 with VectorOpsExpSmaller3 with VectorOps with DeliteCollectionOpsExp
+{
+  this: VectorImplOps with OptiLAExp =>
+}
+
+trait VectorOpsExpSmaller1 extends VectorOps with DeliteCollectionOpsExp {
 
   this: VectorImplOps with OptiLAExp =>
 
@@ -540,6 +546,10 @@ trait VectorOpsExp extends VectorOps with DeliteCollectionOpsExp {
       
     val mA = manifest[A]
   }
+}
+trait VectorOpsExpSmaller2 extends VectorOps with DeliteCollectionOpsExp {
+
+  this: VectorImplOps with OptiLAExp =>
     
   ///////////////////////////////////////
   // implemented via parallel delite ops
@@ -991,6 +1001,11 @@ trait VectorOpsExp extends VectorOps with DeliteCollectionOpsExp {
 
     val mA = manifest[A]
   }
+}
+
+trait VectorOpsExpSmaller3 extends VectorOpsExpSmaller1 with VectorOps with DeliteCollectionOpsExp {
+
+  this: VectorImplOps with OptiLAExp =>
 
   // AKS TODO: how does alloc for parallel repmat work with sparse vectors?  
   // case class VectorRepmat[A:Manifest,MA:Manifest](x: Interface[Vector[A]], i: Exp[Int], j: Exp[Int])(implicit val b: MatrixBuilder[A,MA])

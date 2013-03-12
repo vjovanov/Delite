@@ -379,8 +379,11 @@ trait MatrixOps extends Variables {
   def matrix_count[A:Manifest](x: Interface[Matrix[A]], pred: Rep[A] => Rep[Boolean])(implicit ctx: SourceContext): Rep[Int]
 }
 
+trait MatrixOpsExp  extends MatrixOps with  DeliteCollectionOpsExp with VariablesExp with MatrixOpsExpSmaller1 with MatrixOpsExpSmaller2 {
+  this: MatrixImplOps with OptiLAExp  =>
+}
 
-trait MatrixOpsExp extends MatrixOps with DeliteCollectionOpsExp with VariablesExp {
+trait MatrixOpsExpSmaller1 extends MatrixOps with DeliteCollectionOpsExp with VariablesExp {
   this: MatrixImplOps with OptiLAExp  =>
   
   //////////////////////////////////////////////////
@@ -673,7 +676,9 @@ trait MatrixOpsExp extends MatrixOps with DeliteCollectionOpsExp with VariablesE
 
     def func = e => e * y
   }
-
+}
+trait MatrixOpsExpSmaller2 extends MatrixOps with DeliteCollectionOpsExp with VariablesExp {
+  this: MatrixImplOps with OptiLAExp  =>
   case class MatrixTimesWithConvert[A:Manifest,B:Manifest:Arith,I<:MatrixBuildable[B]:Manifest,MB<:Matrix[B]:Manifest](intfA: Interface[Matrix[A]], intfB: Interface[Matrix[B]])(implicit val conv: Exp[A] => Exp[B], val b: MatrixBuilder[B,I,MB])
     extends DeliteOpZipWithI[A,B,B,I,MB] {
     
