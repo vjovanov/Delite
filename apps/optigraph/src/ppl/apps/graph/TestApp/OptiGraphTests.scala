@@ -3,7 +3,7 @@ package ppl.apps.graph.TestApp
 import ppl.dsl.optigraph._
 import ppl.delite.framework.DeliteApplication
 
-/*object GraphAppRunner extends OptiGraphApplicationRunner with OptiGraphTests
+object GraphAppRunner extends OptiGraphApplicationRunner with OptiGraphTests
 
 /*
  *  -----------------------------------------
@@ -1180,4 +1180,4 @@ trait OptiGraphTests extends OptiGraphApplication {
     //BC()
   }
 }
-*/
+
